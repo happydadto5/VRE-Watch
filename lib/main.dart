@@ -7,17 +7,13 @@ import 'package:volume_controller/volume_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
-
-// Corrected relative importss
-// Corrected relative importss Big change here
-// Bigger change here.
-
-
 import 'helpers/location_permission_helper.dart';
 import 'services/location_service.dart';
-import 'widgets/location_status_widget.dart'; // Will now import TopInfoDisplayWidget
-
+import 'widgets/location_status_widget.dart';
 import 'constants/location_constants.dart';
+
+// App version
+const String appVersion = '1.0.1';
 
 @pragma('vm:entry-point')
 void main() async {
@@ -29,7 +25,6 @@ void main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
-
   Widget build(BuildContext context) {
     return const MaterialApp(
       home: LocationScreen(),
@@ -58,7 +53,6 @@ class _LocationScreenState extends State<LocationScreen>
   double _currentLatitude = 0.0;
   double _currentLongitude = 0.0;
 
-
   String _locationStatus = "Initializing...";
   String _currentTrain = "None";
   String _trackingMode = "Waiting";
@@ -71,10 +65,8 @@ class _LocationScreenState extends State<LocationScreen>
   Timer? _trainDefaultsTimer; // Timer for checking automatic train defaults
   FlutterTts flutterTts = FlutterTts();
 
-
   DateTime? simulatedStart;
   DateTime? _dayOffDateTime; // To store the user's selected day off date
-
 
   DateTime? _realTimeAtSimulationStart; // Tracks when simulation was activated
 
@@ -148,12 +140,8 @@ class _LocationScreenState extends State<LocationScreen>
 
   void _onReceiveTaskData(Object data) {
     if (data is Map<String, dynamic>) {
-      final double?
-      lat = data['latitude'];
+      final double? lat = data['latitude'];
       final double? lon = data['longitude'];
-
-
-
 
       // final double? distance = data['distance']; // Removed
       if (mounted) {
@@ -165,14 +153,9 @@ class _LocationScreenState extends State<LocationScreen>
             //"Lat: ${lat.toStringAsFixed(4)}, Lon: ${lon.toStringAsFixed(4)}";
           }
 
-
-
           // _updateDistanceMessage(distance); // Removed
 
           _currentTrain = data['currentTrain'] ?? _currentTrain;
-
-
-
 
           _trackingMode = data['trackingMode'] ?? _trackingMode;
           _isServiceRunning = data['isServiceRunning'] ?? _isServiceRunning;
@@ -180,21 +163,22 @@ class _LocationScreenState extends State<LocationScreen>
         });
       }
 
-
       if (data['action'] == LocationConstants.actionAlert) {
         _showAlert('VRE Watch Alert!', data['message'] ?? 'Unknown alert');
-
       } else if (data['action'] == LocationConstants.actionToast) {
         _showToast(data['message'] ?? 'Unknown message');
       } else if (data['action'] == LocationConstants.actionPlayBeep) {
         print("UI: Received request to play beep.");
         _speak("prep"); // Use TTS to say "prep"
-      } else if (data['action'] == 'dayOffAutomaticallyCleared') { // [cite: 233]
-        if (mounted && _dayOffDateTime != null) { // Check if it was actually set
+      } else if (data['action'] == 'dayOffAutomaticallyCleared') {
+        // [cite: 233]
+        if (mounted && _dayOffDateTime != null) {
+          // Check if it was actually set
           setState(() {
             _dayOffDateTime = null;
           });
-          _showToast("Day off was automatically cleared by the service."); // [cite: 234]
+          _showToast(
+              "Day off was automatically cleared by the service."); // [cite: 234]
         }
       } else if (data['action'] == 'trainAutoSwitched') {
         if (mounted) {
@@ -206,11 +190,8 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   Future<void> _checkAndRequestPermissions() async {
-
-
-
     bool hasPermission =
-    await LocationPermissionHelper.requestLocationPermissions(context);
+        await LocationPermissionHelper.requestLocationPermissions(context);
 // Also request overlay permission for better alerts
     await LocationPermissionHelper.requestOverlayPermission(context);
     if (mounted) {
@@ -250,8 +231,10 @@ class _LocationScreenState extends State<LocationScreen>
 
     String? dayOffDateStr = prefs.getString(LocationConstants.prefDayOffDate);
 
-    _morningDefaultAppliedDate = prefs.getString(LocationConstants.prefMorningDefaultAppliedDate);
-    _afternoonDefaultAppliedDate = prefs.getString(LocationConstants.prefAfternoonDefaultAppliedDate);
+    _morningDefaultAppliedDate =
+        prefs.getString(LocationConstants.prefMorningDefaultAppliedDate);
+    _afternoonDefaultAppliedDate =
+        prefs.getString(LocationConstants.prefAfternoonDefaultAppliedDate);
     if (dayOffDateStr != null && dayOffDateStr.isNotEmpty) {
       try {
         // Assuming YYYY-MM-DD format from SharedPreferences
@@ -293,16 +276,14 @@ class _LocationScreenState extends State<LocationScreen>
     String? isoDateString;
     if (newDayOffDate != null) {
       isoDateString =
-      "${newDayOffDate.year}-${newDayOffDate.month.toString().padLeft(
-          2, '0')}-${newDayOffDate.day.toString().padLeft(2, '0')}";
+          "${newDayOffDate.year}-${newDayOffDate.month.toString().padLeft(2, '0')}-${newDayOffDate.day.toString().padLeft(2, '0')}";
       await prefs.setString(LocationConstants.prefDayOffDate, isoDateString);
-      _showToast("Day off set to: ${DateFormat('EEE, MMM d').format(
-          newDayOffDate)}");
+      _showToast(
+          "Day off set to: ${DateFormat('EEE, MMM d').format(newDayOffDate)}");
     } else {
       await prefs.remove(LocationConstants.prefDayOffDate);
       _showToast("Day off cleared.");
     }
-
 
 // Notify the background service
     FlutterForegroundTask.sendDataToTask({
@@ -313,14 +294,15 @@ class _LocationScreenState extends State<LocationScreen>
 
   // Ensure _getCurrentTimeForLogic is defined at the class level
 
-
-
   DateTime _getCurrentTimeForLogic() {
     if (simulatedStart != null && _realTimeAtSimulationStart != null) {
-      final Duration elapsedRealTime = DateTime.now().difference(_realTimeAtSimulationStart!);
+      final Duration elapsedRealTime =
+          DateTime.now().difference(_realTimeAtSimulationStart!);
       const double simulationSpeedFactor = 15.0; // Fixed 15x speed factor
-      final int acceleratedMilliseconds = (elapsedRealTime.inMilliseconds * simulationSpeedFactor).round();
-      return simulatedStart!.add(Duration(milliseconds: acceleratedMilliseconds));
+      final int acceleratedMilliseconds =
+          (elapsedRealTime.inMilliseconds * simulationSpeedFactor).round();
+      return simulatedStart!
+          .add(Duration(milliseconds: acceleratedMilliseconds));
     }
     return DateTime.now();
   }
@@ -336,9 +318,6 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   void _setOffToday() {
-
-
-
     final DateTime today = DateTime.now();
     // Ensure we are only using the date part by creating a new DateTime object
     _updateAndSaveDayOffState(DateTime(today.year, today.month, today.day));
@@ -351,9 +330,6 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   void _clearDayOff() {
-
-
-
     _updateAndSaveDayOffState(null); // Pass null to clear the date
 
     // Determine current time using the helper
@@ -361,8 +337,6 @@ class _LocationScreenState extends State<LocationScreen>
     String newTrain;
 
     if (timeToConsider.hour < 8) {
-
-
       // Before 8 AM
       newTrain = _trainMorning1; // Default morning train "326"
     } else {
@@ -379,21 +353,16 @@ class _LocationScreenState extends State<LocationScreen>
       _saveState(); // Save the new train state
 
       // Notify the background service of the train change
-      FlutterForegroundTask.sendDataToTask({
-        'action': 'updateTrain',
-        'currentTrain': _currentTrain
-      });
+      FlutterForegroundTask.sendDataToTask(
+          {'action': 'updateTrain', 'currentTrain': _currentTrain});
     }
   }
 
   Future<void> _startBackgroundTracking() async {
-
-
     if (!mounted) return;
 
-
     bool hasPermission =
-    await LocationPermissionHelper.requestLocationPermissions(context);
+        await LocationPermissionHelper.requestLocationPermissions(context);
     if (!hasPermission) {
       _showToast("Location permission is required to start tracking.");
       return;
@@ -402,10 +371,13 @@ class _LocationScreenState extends State<LocationScreen>
     // After LocationPermissionHelper runs, explicitly check for "Allow all the time" on Android
     // This check is now correctly placed *after* the initial permission grant
     // and before proceeding to start the service.
-    if (Theme.of(context).platform == TargetPlatform.android) { // Check if running on Android
-      LocationPermission currentPermissionStatus = await Geolocator.checkPermission();
+    if (Theme.of(context).platform == TargetPlatform.android) {
+      // Check if running on Android
+      LocationPermission currentPermissionStatus =
+          await Geolocator.checkPermission();
       if (currentPermissionStatus != LocationPermission.always) {
-        _showToast("For reliable background tracking, please set location permission to 'Allow all the time' in app settings.");
+        _showToast(
+            "For reliable background tracking, please set location permission to 'Allow all the time' in app settings.");
         // Optionally, you could also open settings again here:
         // await Geolocator.openAppSettings();
         return; // Prevent starting the service if "Allow all the time" is not granted
@@ -434,7 +406,7 @@ class _LocationScreenState extends State<LocationScreen>
 
   Future<void> _stopBackgroundTracking() async {
     final ServiceRequestResult result =
-    await FlutterForegroundTask.stopService();
+        await FlutterForegroundTask.stopService();
     final bool success = result is ServiceRequestSuccess;
 
     if (mounted) {
@@ -454,23 +426,19 @@ class _LocationScreenState extends State<LocationScreen>
     if (!mounted) return;
     showDialog(
       context: context,
-      builder: (context) =>
-          AlertDialog(
-            title: Text(title),
-            content: Text(message),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  locationService.acknowledgeAlert();
-
-
-                },
-
-                child: const Text('Acknowledge'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              locationService.acknowledgeAlert();
+            },
+            child: const Text('Acknowledge'),
           ),
+        ],
+      ),
     );
   }
 
@@ -480,6 +448,7 @@ class _LocationScreenState extends State<LocationScreen>
       SnackBar(content: Text(message)),
     );
   }
+
   Future<void> _checkAndApplyAutomaticTrainDefaults() async {
     if (!mounted) return;
 
@@ -488,40 +457,55 @@ class _LocationScreenState extends State<LocationScreen>
     final SharedPreferences prefs = await SharedPreferences.getInstance();
 
     // Reset applied dates if the day has changed
-    if (_morningDefaultAppliedDate != null && _morningDefaultAppliedDate != currentDateStr) {
+    if (_morningDefaultAppliedDate != null &&
+        _morningDefaultAppliedDate != currentDateStr) {
       if (mounted) {
-        setState(() { _morningDefaultAppliedDate = null; });
+        setState(() {
+          _morningDefaultAppliedDate = null;
+        });
       }
       await prefs.remove(LocationConstants.prefMorningDefaultAppliedDate);
-      print("UI: Reset morning default applied date for new day: $currentDateStr");
+      print(
+          "UI: Reset morning default applied date for new day: $currentDateStr");
     }
-    if (_afternoonDefaultAppliedDate != null && _afternoonDefaultAppliedDate != currentDateStr) {
+    if (_afternoonDefaultAppliedDate != null &&
+        _afternoonDefaultAppliedDate != currentDateStr) {
       if (mounted) {
-        setState(() { _afternoonDefaultAppliedDate = null; });
+        setState(() {
+          _afternoonDefaultAppliedDate = null;
+        });
       }
       await prefs.remove(LocationConstants.prefAfternoonDefaultAppliedDate);
-      print("UI: Reset afternoon default applied date for new day: $currentDateStr");
+      print(
+          "UI: Reset afternoon default applied date for new day: $currentDateStr");
     }
 
     // Morning default logic:
     // Apply if it's between 5:30 AM (inclusive) and 12:00 PM (exclusive)
     // and morning default has not yet been applied today.
-    bool isMorningWindow = (now.hour == 5 && now.minute >= 30) || (now.hour > 5 && now.hour < 12);
+    bool isMorningWindow =
+        (now.hour == 5 && now.minute >= 30) || (now.hour > 5 && now.hour < 12);
     if (isMorningWindow) {
       if (_morningDefaultAppliedDate != currentDateStr) {
-        print("UI: Processing morning auto train switch check for $currentDateStr (time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}). Current train: $_currentTrain");
+        print(
+            "UI: Processing morning auto train switch check for $currentDateStr (time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}). Current train: $_currentTrain");
         if (_currentTrain == _trainNone ||
             _currentTrain == _trainEvening1 ||
             _currentTrain == _trainEvening2 ||
             _currentTrain == _trainEvening3) {
-          await _switchToTrain(_trainMorning1, "Defaulted to morning train: $_trainMorning1 at ${now.hour}:${now.minute.toString().padLeft(2, '0')}");
+          await _switchToTrain(_trainMorning1,
+              "Defaulted to morning train: $_trainMorning1 at ${now.hour}:${now.minute.toString().padLeft(2, '0')}");
         }
         // Mark as applied for today
         if (mounted) {
-          setState(() { _morningDefaultAppliedDate = currentDateStr; });
+          setState(() {
+            _morningDefaultAppliedDate = currentDateStr;
+          });
         }
-        await prefs.setString(LocationConstants.prefMorningDefaultAppliedDate, currentDateStr);
-        print("UI: Morning default for $currentDateStr (train $_trainMorning1) processed and marked at ${now.hour}:${now.minute.toString().padLeft(2, '0')}.");
+        await prefs.setString(
+            LocationConstants.prefMorningDefaultAppliedDate, currentDateStr);
+        print(
+            "UI: Morning default for $currentDateStr (train $_trainMorning1) processed and marked at ${now.hour}:${now.minute.toString().padLeft(2, '0')}.");
       }
     }
 
@@ -530,25 +514,32 @@ class _LocationScreenState extends State<LocationScreen>
     // and afternoon default has not yet been applied today.
     if (now.hour >= 12) {
       if (_afternoonDefaultAppliedDate != currentDateStr) {
-        print("UI: Processing afternoon auto train switch check for $currentDateStr (time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}). Current train: $_currentTrain");
+        print(
+            "UI: Processing afternoon auto train switch check for $currentDateStr (time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}). Current train: $_currentTrain");
         if (_currentTrain == _trainNone ||
             _currentTrain == _trainMorning1 ||
             _currentTrain == _trainMorning2) {
-          await _switchToTrain(_trainEvening1, "Defaulted to afternoon train: $_trainEvening1 at ${now.hour}:${now.minute.toString().padLeft(2, '0')}");
+          await _switchToTrain(_trainEvening1,
+              "Defaulted to afternoon train: $_trainEvening1 at ${now.hour}:${now.minute.toString().padLeft(2, '0')}");
         }
         // Mark as applied for today
         if (mounted) {
-          setState(() { _afternoonDefaultAppliedDate = currentDateStr; });
+          setState(() {
+            _afternoonDefaultAppliedDate = currentDateStr;
+          });
         }
-        await prefs.setString(LocationConstants.prefAfternoonDefaultAppliedDate, currentDateStr);
-        print("UI: Afternoon default for $currentDateStr (train $_trainEvening1) processed and marked at ${now.hour}:${now.minute.toString().padLeft(2, '0')}.");
+        await prefs.setString(
+            LocationConstants.prefAfternoonDefaultAppliedDate, currentDateStr);
+        print(
+            "UI: Afternoon default for $currentDateStr (train $_trainEvening1) processed and marked at ${now.hour}:${now.minute.toString().padLeft(2, '0')}.");
       }
     }
   }
 
-
-  Future<void> _updateDisplayDateTime() async { // Made async
-    if (mounted) { // Ensure widget is still mounted before async operations
+  Future<void> _updateDisplayDateTime() async {
+    // Made async
+    if (mounted) {
+      // Ensure widget is still mounted before async operations
       //await _checkAndApplyAutomaticTrainDefaults();
     }
 // Update display tracking mode based on current time
@@ -571,18 +562,17 @@ class _LocationScreenState extends State<LocationScreen>
         int currentHour = currentTimeToDisplay.hour;
         int currentMinute = currentTimeToDisplay.minute;
         // True if 8:00 <= time < 15:30 (3:30 PM)
-        bool isWorkingHours = (currentHour >= 8 && currentHour < 15) || (currentHour == 15 && currentMinute < 30);
-
-
+        bool isWorkingHours = (currentHour >= 8 && currentHour < 15) ||
+            (currentHour == 15 && currentMinute < 30);
 
         // Update the display string for time
-        if (simulatedStart != null) { // Prefix is based on whether simulation mode is active
+        if (simulatedStart != null) {
+          // Prefix is based on whether simulation mode is active
           _displayDateTimeString =
-          "(TEST) Time: ${DateFormat('EEE HH:mm').format(currentTimeToDisplay)}";
+              "(TEST) Time: ${DateFormat('EEE HH:mm').format(currentTimeToDisplay)}";
         } else {
           _displayDateTimeString =
-          "Time: ${DateFormat('EEE HH:mm').format(currentTimeToDisplay)}";
-
+              "Time: ${DateFormat('EEE HH:mm').format(currentTimeToDisplay)}";
         }
       });
     }
@@ -598,15 +588,16 @@ class _LocationScreenState extends State<LocationScreen>
     }
     // Check if it's a day off
     else if (_dayOffDateTime != null) {
-      final String currentDateIso = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-      final String dayOffIso = "${_dayOffDateTime!.year}-${_dayOffDateTime!.month.toString().padLeft(2, '0')}-${_dayOffDateTime!.day.toString().padLeft(2, '0')}";
+      final String currentDateIso =
+          "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+      final String dayOffIso =
+          "${_dayOffDateTime!.year}-${_dayOffDateTime!.month.toString().padLeft(2, '0')}-${_dayOffDateTime!.day.toString().padLeft(2, '0')}";
       if (dayOffIso == currentDateIso && now.hour < 20) {
         newMode = LocationConstants.trackingModeDayOff;
       } else {
         newMode = _calculateTimeBasedMode(now);
       }
-    }
-    else {
+    } else {
       newMode = _calculateTimeBasedMode(now);
     }
 
@@ -618,10 +609,13 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   String _calculateTimeBasedMode(DateTime now) {
-    bool isMorningTime = (now.hour == LocationConstants.morningModeStartHour && now.minute >= LocationConstants.morningModeStartMinute) ||
-        (now.hour > LocationConstants.morningModeStartHour && now.hour < LocationConstants.morningModeEndHour);
+    bool isMorningTime = (now.hour == LocationConstants.morningModeStartHour &&
+            now.minute >= LocationConstants.morningModeStartMinute) ||
+        (now.hour > LocationConstants.morningModeStartHour &&
+            now.hour < LocationConstants.morningModeEndHour);
 
-    bool isWorkdayTime = now.hour >= LocationConstants.morningModeEndHour && now.hour < LocationConstants.workdayModeEndHour;
+    bool isWorkdayTime = now.hour >= LocationConstants.morningModeEndHour &&
+        now.hour < LocationConstants.workdayModeEndHour;
 
     bool isAfternoonTime = now.hour >= LocationConstants.afternoonModeStartHour;
 
@@ -636,36 +630,41 @@ class _LocationScreenState extends State<LocationScreen>
     }
   }
 
-
   void _toggleTrain() {
     if (mounted) {
       setState(() {
         final DateTime timeToConsider = _getCurrentTimeForLogic();
-        final bool isMorning = timeToConsider.hour <
-            13; // Before 1 PM is considered morning
+        final bool isMorning =
+            timeToConsider.hour < 13; // Before 1 PM is considered morning
 
         if (isMorning) {
           // Morning cycle: 326 -> 328 -> 326 ...
           // If current is "None" or an evening train, start with 326.
-          if (_currentTrain == _trainMorning1) { // Currently 326
+          if (_currentTrain == _trainMorning1) {
+            // Currently 326
             _currentTrain = _trainMorning2; // Switch to 328
-          } else if (_currentTrain == _trainMorning2) { // Currently 328
+          } else if (_currentTrain == _trainMorning2) {
+            // Currently 328
             _currentTrain = _trainMorning1; // Loop back to 326
           } else {
             // This covers _trainNone or if an evening train was somehow selected
             _currentTrain =
                 _trainMorning1; // Default to first morning train (326)
           }
-        } else { // Afternoon/Evening
+        } else {
+          // Afternoon/Evening
           // Afternoon cycle: 329 -> 331 -> 333 -> 329 ...
           // _trainEvening3 is "329"
           // _trainEvening1 is "331"
           // _trainEvening2 is "333"
-          if (_currentTrain == _trainEvening3) { // Currently 329
+          if (_currentTrain == _trainEvening3) {
+            // Currently 329
             _currentTrain = _trainEvening1; // Switch to 331
-          } else if (_currentTrain == _trainEvening1) { // Currently 331
+          } else if (_currentTrain == _trainEvening1) {
+            // Currently 331
             _currentTrain = _trainEvening2; // Switch to 333
-          } else if (_currentTrain == _trainEvening2) { // Currently 333
+          } else if (_currentTrain == _trainEvening2) {
+            // Currently 333
             _currentTrain = _trainEvening3; // Loop back to 329
           } else {
             // This covers _trainNone or if a morning train was somehow selected
@@ -677,19 +676,13 @@ class _LocationScreenState extends State<LocationScreen>
         _showToast("Switched to train: $_currentTrain");
       });
       _saveState(); // This will call _showToast("Settings saved.")
-      FlutterForegroundTask.sendDataToTask({
-        'action': 'updateTrain',
-        'currentTrain': _currentTrain
-      });
+      FlutterForegroundTask.sendDataToTask(
+          {'action': 'updateTrain', 'currentTrain': _currentTrain});
     }
   }
 
-
-
-
   void _testTimeToggle() async {
     if (!mounted) return;
-
 
     if (simulatedStart == null) {
       // 1. Pick Date
@@ -697,7 +690,7 @@ class _LocationScreenState extends State<LocationScreen>
         context: context,
         initialDate: DateTime.now(),
         firstDate: DateTime(2000), // Or a suitable past date
-        lastDate: DateTime(2101),  // Or a suitable future date
+        lastDate: DateTime(2101), // Or a suitable future date
       );
 
       if (pickedDate == null) return; // User cancelled date picker
@@ -706,11 +699,11 @@ class _LocationScreenState extends State<LocationScreen>
       final TimeOfDay? pickedTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(DateTime.now()),
-        initialEntryMode: TimePickerEntryMode.input, // Ensures 1-minute precision via text input
+        initialEntryMode: TimePickerEntryMode
+            .input, // Ensures 1-minute precision via text input
       );
 
       if (pickedTime == null) return; // User cancelled time picker
-
 
       // 3. Combine Date and Time
       final DateTime newSimulatedStartTime = DateTime(
@@ -723,7 +716,8 @@ class _LocationScreenState extends State<LocationScreen>
 
       setState(() {
         simulatedStart = newSimulatedStartTime;
-        _realTimeAtSimulationStart = DateTime.now(); // Store real time when simulation starts
+        _realTimeAtSimulationStart =
+            DateTime.now(); // Store real time when simulation starts
         _updateDisplayDateTime(); // Update display immediately
       });
       // Update toast message to include date and time
@@ -731,9 +725,6 @@ class _LocationScreenState extends State<LocationScreen>
           "Test time set to: ${DateFormat('EEE, MMM d, HH:mm').format(newSimulatedStartTime)} (simulated)");
       _startOrRestartTrainDefaultsTimer();
     } else {
-
-
-
       setState(() {
         simulatedStart = null;
         _realTimeAtSimulationStart = null; // Clear real time tracker
@@ -745,31 +736,26 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   void _updateAll() {
-
-
-
-
-
     if (mounted) {
       _loadState();
       _updateDisplayDateTime();
 
-
       _showToast("Data refreshed.");
-
-
     }
   }
+
   void _startOrRestartTrainDefaultsTimer() {
     _trainDefaultsTimer?.cancel(); // Cancel existing timer if any
 
     final Duration timerDuration = (simulatedStart == null)
         ? const Duration(seconds: 30) // Real time: 30 seconds
-        : const Duration(seconds: 5);  // Simulated time: 5 seconds
+        : const Duration(seconds: 5); // Simulated time: 5 seconds
 
-    print("Scheduling automatic train defaults check every ${timerDuration.inSeconds} seconds.");
+    print(
+        "Scheduling automatic train defaults check every ${timerDuration.inSeconds} seconds.");
     _trainDefaultsTimer = Timer.periodic(timerDuration, (timer) {
-      if (mounted) { // Ensure widget is still mounted
+      if (mounted) {
+        // Ensure widget is still mounted
         _checkAndApplyAutomaticTrainDefaults();
       }
     });
@@ -788,10 +774,8 @@ class _LocationScreenState extends State<LocationScreen>
     if (trainChanged) {
       _showToast(toastMessage);
       await _saveState(); // This will save the updated _currentTrain and the (potentially temporary) _trackingMode
-      FlutterForegroundTask.sendDataToTask({
-        'action': 'updateTrain',
-        'currentTrain': _currentTrain
-      });
+      FlutterForegroundTask.sendDataToTask(
+          {'action': 'updateTrain', 'currentTrain': _currentTrain});
     }
   }
 
@@ -850,11 +834,13 @@ class _LocationScreenState extends State<LocationScreen>
     String minute = parts[1];
 
     // Convert to 12-hour format for display
-    if (hour >= 12) { // Handles 12:xx PM and 13:xx to 23:xx
+    if (hour >= 12) {
+      // Handles 12:xx PM and 13:xx to 23:xx
       if (hour > 12) {
         hour -= 12;
       }
-    } else if (hour == 0) { // Handles 00:xx (midnight)
+    } else if (hour == 0) {
+      // Handles 00:xx (midnight)
       hour = 12;
     }
     // Morning hours (1-11 AM) remain as is (e.g., 06:29 becomes 6:29 after int.parse)
@@ -864,16 +850,12 @@ class _LocationScreenState extends State<LocationScreen>
     return "$_currentTrain - $label ($formattedTime)";
   }
 
-
-
   @override
   Widget build(BuildContext context) {
-
     // Variable to hold the display string for day off status
     String dayOffStatusText = _dayOffDateTime == null
         ? 'Day Off: None set'
-        : 'Day Off Set For: ${DateFormat('EEE, MMM d').format(
-        _dayOffDateTime!)}';
+        : 'Day Off Set For: ${DateFormat('EEE, MMM d').format(_dayOffDateTime!)}';
 
     return Scaffold(
       appBar: AppBar(title: const Text('VRE Watch')),
@@ -884,16 +866,7 @@ class _LocationScreenState extends State<LocationScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              TopInfoDisplayWidget( // The new combined widget for top status info
-                displayDateTimeString: _displayDateTimeString,
-                currentLatitude: _currentLatitude,
-                currentLongitude: _currentLongitude,
-                currentTrain: _getFormattedTrainDisplayString(), // MODIFIED LINE
-                trackingMode: _displayTrackingMode,
-                currentVolume: _currentVolume,
-                dayOffStatusText: dayOffStatusText, // `dayOffStatusText` is defined in the build method
-              ),
-
+              _buildTopInfoDisplay(),
 
               const Divider(), // Separator after the top info block
 
@@ -907,20 +880,19 @@ class _LocationScreenState extends State<LocationScreen>
                 onPressed: () async {
                   const url = 'https://www.vre.org/train-status/';
                   if (await canLaunchUrl(Uri.parse(url))) {
-                    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+                    await launchUrl(Uri.parse(url),
+                        mode: LaunchMode.externalApplication);
                   }
                 },
                 child: const Text('VRE Status'),
               ),
               const SizedBox(height: 10),
 
-
-
-
               if (_dayOffDateTime != null) ...[
                 ElevatedButton(
                   onPressed: _clearDayOff,
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                  style:
+                      ElevatedButton.styleFrom(backgroundColor: Colors.orange),
                   child: const Text("Clear Day Off"),
                 ),
               ] else ...[
@@ -945,20 +917,19 @@ class _LocationScreenState extends State<LocationScreen>
                 ),
               ],
 
-
-
-
               const SizedBox(height: 10),
               const Divider(), // Separator before the testing/service controls
 
               // --- Testing & Service Controls ---
-              Text( // For the separated "Status Message"
+              Text(
+                // For the separated "Status Message"
                 'Status Message: $_locationStatus',
                 style: const TextStyle(fontSize: 16),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-              Text( // For the separated "Service Status"
+              Text(
+                // For the separated "Service Status"
                 'Service Status: ${_isServiceRunning ? 'Running' : 'Stopped'}',
                 style: TextStyle(
                   fontSize: 16,
@@ -980,8 +951,9 @@ class _LocationScreenState extends State<LocationScreen>
                     ? _stopBackgroundTracking
                     : _startBackgroundTracking,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                  _isServiceRunning ? Colors.red : Colors.green, // Using green for "Start"
+                  backgroundColor: _isServiceRunning
+                      ? Colors.red
+                      : Colors.green, // Using green for "Start"
                 ),
                 child: Text(
                   _isServiceRunning
@@ -989,10 +961,118 @@ class _LocationScreenState extends State<LocationScreen>
                       : 'Start Background Tracking',
                 ),
               ),
-
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTopInfoDisplay() {
+    String dayOffStatusText = _dayOffDateTime == null
+        ? 'Day Off: None set'
+        : 'Day Off Set For: ${DateFormat('EEE, MMM d').format(_dayOffDateTime!)}';
+
+    return TopInfoDisplayWidget(
+      displayDateTimeString: _displayDateTimeString,
+      currentTrain: _getFormattedTrainDisplayString(),
+      displayTrackingMode: _displayTrackingMode,
+      locationStatus: _locationStatus,
+      currentLatitude: _currentLatitude,
+      currentLongitude: _currentLongitude,
+      dayOffStatusText: dayOffStatusText,
+    );
+  }
+}
+
+class TopInfoDisplayWidget extends StatelessWidget {
+  final String displayDateTimeString;
+  final String currentTrain;
+  final String displayTrackingMode;
+  final String locationStatus;
+  final double currentLatitude;
+  final double currentLongitude;
+  final String dayOffStatusText;
+
+  const TopInfoDisplayWidget({
+    super.key,
+    required this.displayDateTimeString,
+    required this.currentTrain,
+    required this.displayTrackingMode,
+    required this.locationStatus,
+    required this.currentLatitude,
+    required this.currentLongitude,
+    required this.dayOffStatusText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(8.0),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(8.0),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            displayDateTimeString,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Train: $currentTrain',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Mode: $displayTrackingMode',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Location: ${currentLatitude.toStringAsFixed(4)}, ${currentLongitude.toStringAsFixed(4)}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            dayOffStatusText,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            locationStatus,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'v$appVersion',
+            style: const TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ),
     );
   }
