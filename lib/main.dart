@@ -277,7 +277,8 @@ class _LocationScreenState extends State<LocationScreen>
       final Duration elapsedRealTime = DateTime.now().difference(
         _realTimeAtSimulationStart!,
       );
-      const double simulationSpeedFactor = 15.0; // Fixed 15x speed factor
+      const double simulationSpeedFactor =
+          45.0; // Fixed 45x speed factor (3x faster than previous 15x)
       final int acceleratedMilliseconds =
           (elapsedRealTime.inMilliseconds * simulationSpeedFactor).round();
       return simulatedStart!.add(
@@ -706,6 +707,44 @@ class _LocationScreenState extends State<LocationScreen>
     }
   }
 
+  void _testTimeMondayMorning() async {
+    if (!mounted) return;
+
+    // Find the next Monday (or use current date if already Monday)
+    DateTime now = DateTime.now();
+    DateTime nextMonday = now;
+
+    // If it's not Monday, find the next Monday
+    if (now.weekday != DateTime.monday) {
+      int daysUntilMonday = DateTime.monday - now.weekday;
+      if (daysUntilMonday <= 0) {
+        daysUntilMonday += 7; // Next week's Monday
+      }
+      nextMonday = now.add(Duration(days: daysUntilMonday));
+    }
+
+    // Set to 5:28 AM on that Monday
+    final DateTime mondayMorningTime = DateTime(
+      nextMonday.year,
+      nextMonday.month,
+      nextMonday.day,
+      5, // 5 AM
+      28, // 28 minutes
+    );
+
+    setState(() {
+      simulatedStart = mondayMorningTime;
+      _realTimeAtSimulationStart =
+          DateTime.now(); // Store real time when simulation starts
+      _updateDisplayDateTime(); // Update display immediately
+    });
+
+    _showToast(
+      "Test time set to: ${DateFormat('EEE, MMM d, HH:mm').format(mondayMorningTime)} (simulated)",
+    );
+    _startOrRestartTrainDefaultsTimer();
+  }
+
   void _updateAll() {
     if (mounted) {
       _loadState();
@@ -936,6 +975,11 @@ class _LocationScreenState extends State<LocationScreen>
                       ? 'Set Test Time'
                       : 'Revert to Real Time',
                 ),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: _testTimeMondayMorning,
+                child: const Text('Test Time to Monday AM'),
               ),
               const SizedBox(height: 10),
               ElevatedButton(
