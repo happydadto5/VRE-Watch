@@ -1005,6 +1005,34 @@ class TopInfoDisplayWidget extends StatelessWidget {
     required this.dayOffStatusText,
   });
 
+  String? _getDistanceToStation() {
+    // Only show distance in morning or afternoon mode
+    if (displayTrackingMode != LocationConstants.trackingModeMorning &&
+        displayTrackingMode != LocationConstants.trackingModeAfternoon) {
+      return null;
+    }
+
+    // Determine which station to use based on tracking mode
+    Map<String, double> targetStation;
+    if (displayTrackingMode == LocationConstants.trackingModeMorning) {
+      targetStation = LocationConstants.rollingRoadStation;
+    } else {
+      targetStation = LocationConstants.unionStation;
+    }
+
+    // Calculate distance in meters
+    double distanceInMeters = Geolocator.distanceBetween(
+      currentLatitude,
+      currentLongitude,
+      targetStation['latitude']!,
+      targetStation['longitude']!,
+    );
+
+    // Convert to miles and format to 1 decimal place
+    double distanceInMiles = distanceInMeters * LocationConstants.metersToMiles;
+    return '${distanceInMiles.toStringAsFixed(1)} miles';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1040,14 +1068,16 @@ class TopInfoDisplayWidget extends StatelessWidget {
               fontSize: 14,
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Location: ${currentLatitude.toStringAsFixed(4)}, ${currentLongitude.toStringAsFixed(4)}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
+          if (_getDistanceToStation() != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Distance: ${_getDistanceToStation()}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 4),
           Text(
             dayOffStatusText,
