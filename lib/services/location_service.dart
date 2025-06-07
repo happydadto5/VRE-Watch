@@ -50,7 +50,7 @@ class LocationTaskHandler extends TaskHandler {
     _flutterTts = FlutterTts();
     await _flutterTts.setSharedInstance(true);
 // Initialize tracking mode based on current time
-    _updateTrackingModeBasedOnTime();
+    await _updateTrackingModeBasedOnTime();
 
     await _flutterTts.setSpeechRate(0.5);
     await _flutterTts.setVolume(1.0);
@@ -832,16 +832,27 @@ class LocationTaskHandler extends TaskHandler {
     }
   }
 
-  void _updateTrackingModeBasedOnTime() {
+  Future<void> _updateTrackingModeBasedOnTime() async {
     final DateTime now = _effectiveCurrentTime;
 
     // Store previous mode to detect changes
     String previousMode = _trackingMode;
 
     // Check if it's weekend
+    // Check if it's weekend
     if (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday) {
       _trackingMode = LocationConstants.trackingModeInactive;
-      return;
+      if (_currentTrain != "None") {
+        _currentTrain = "None";
+        _updateTargetStation();
+        await _saveState();
+        // Notify UI of the change
+        FlutterForegroundTask.sendDataToMain({
+          'currentTrain': _currentTrain,
+          'trackingMode': _trackingMode,
+        });
+      }
+      return; // Return AFTER all weekend logic is complete
     }
 
     // Check if it's a day off
