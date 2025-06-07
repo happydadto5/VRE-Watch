@@ -15,7 +15,7 @@ import 'package:flutter_foreground_task/models/notification_channel_importance.d
 import 'package:flutter_foreground_task/models/notification_priority.dart';
 
 // App version
-const String appVersion = '1.0.2';
+const String appVersion = '1.0.5';
 
 @pragma('vm:entry-point')
 void main() async {
@@ -74,9 +74,9 @@ class _LocationScreenState extends State<LocationScreen>
   static const String _trainEvening2 = "333";
   static const String _trainNone = "None";
 
-  final double _currentLatitude = 38.8075; // Near Rolling Road area for testing
-  final double _currentLongitude =
-      -77.2653; // Near Rolling Road area for testing
+  double _currentLatitude = 0.0; // Will be set by GPS
+  double _currentLongitude = 0.0; // Will be set by GPS
+  bool _hasRealGpsData = false; // Track if we have actual GPS data
 
   String _locationStatus = "Initializing...";
   String _currentTrain = "None";
@@ -130,6 +130,7 @@ class _LocationScreenState extends State<LocationScreen>
     locationService.dispose();
     _dateTimeTimer?.cancel();
     _trainDefaultsTimer?.cancel(); // Cancel the new timer
+    FlutterForegroundTask.removeTaskDataCallback(_onReceiveTaskData);
     super.dispose();
   }
 
@@ -159,7 +160,45 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   void _initForegroundTaskCommunication() {
-    // No-op for v7.0.0; communication is handled via TaskHandler
+    // Set up callback to receive GPS data from background service
+    FlutterForegroundTask.addTaskDataCallback(_onReceiveTaskData);
+    print('UI: *** DATA CALLBACK REGISTERED ***');
+  }
+
+  void _onReceiveTaskData(Object data) {
+    if (data is Map<String, dynamic>) {
+      print('UI: *** RECEIVED DATA FROM BACKGROUND *** $data');
+
+      if (mounted) {
+        setState(() {
+          // Update GPS coordinates from background service
+          if (data.containsKey('latitude') && data.containsKey('longitude')) {
+            double newLat = data['latitude'];
+            double newLon = data['longitude'];
+            if (newLat != 0.0 && newLon != 0.0) {
+              _currentLatitude = newLat;
+              _currentLongitude = newLon;
+              _hasRealGpsData = true;
+              print(
+                  'UI: *** GPS UPDATED *** ${_currentLatitude.toStringAsFixed(4)}, ${_currentLongitude.toStringAsFixed(4)}');
+            }
+          }
+
+          // Update other data if needed
+          if (data.containsKey('currentTrain')) {
+            _currentTrain = data['currentTrain'];
+            locationService.currentTrain = _currentTrain;
+          }
+
+          if (data.containsKey('trackingMode')) {
+            _trackingMode = data['trackingMode'];
+            _displayTrackingMode = _getDisplayTrackingMode(_trackingMode);
+          }
+        });
+      }
+    } else {
+      print('UI: *** RECEIVED NON-MAP DATA *** $data');
+    }
   }
 
   Future<void> _checkAndRequestPermissions() async {
@@ -445,6 +484,10 @@ class _LocationScreenState extends State<LocationScreen>
     // and morning default has not yet been applied today.
     bool isMorningWindow =
         (now.hour == 5 && now.minute >= 30) || (now.hour > 5 && now.hour < 12);
+
+    print(
+        "UI: DEBUG - Time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}, isMorningWindow: $isMorningWindow, _morningDefaultAppliedDate: $_morningDefaultAppliedDate, currentDateStr: $currentDateStr, currentTrain: $_currentTrain");
+
     if (isMorningWindow) {
       if (_morningDefaultAppliedDate != currentDateStr) {
         print(
@@ -454,10 +497,14 @@ class _LocationScreenState extends State<LocationScreen>
             _currentTrain == _trainEvening1 ||
             _currentTrain == _trainEvening2 ||
             _currentTrain == _trainEvening3) {
+          print("UI: TRIGGERING morning train switch to $_trainMorning1");
           await _switchToTrain(
             _trainMorning1,
             "Defaulted to morning train: $_trainMorning1 at ${now.hour}:${now.minute.toString().padLeft(2, '0')}",
           );
+        } else {
+          print(
+              "UI: NOT switching - current train $_currentTrain is already a morning train");
         }
         // Mark as applied for today
         if (mounted) {
@@ -472,7 +519,11 @@ class _LocationScreenState extends State<LocationScreen>
         print(
           "UI: Morning default for $currentDateStr (train $_trainMorning1) processed and marked at ${now.hour}:${now.minute.toString().padLeft(2, '0')}.",
         );
+      } else {
+        print("UI: Morning default already applied today ($currentDateStr)");
       }
+    } else {
+      print("UI: Not in morning window (5:30 AM - 12:00 PM)");
     }
 
     // Afternoon default logic:
@@ -733,12 +784,22 @@ class _LocationScreenState extends State<LocationScreen>
       28, // 28 minutes
     );
 
+    // Reset applied dates and current train for fresh test
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove(LocationConstants.prefMorningDefaultAppliedDate);
+    await prefs.remove(LocationConstants.prefAfternoonDefaultAppliedDate);
+
     setState(() {
       simulatedStart = mondayMorningTime;
       _realTimeAtSimulationStart =
           DateTime.now(); // Store real time when simulation starts
+      _morningDefaultAppliedDate = null; // Reset in memory too
+      _afternoonDefaultAppliedDate = null; // Reset in memory too
+      _currentTrain = _trainNone; // Reset to None to trigger auto-selection
       _updateDisplayDateTime(); // Update display immediately
     });
+
+    locationService.currentTrain = _currentTrain;
 
     _showToast(
       "Test time set to: ${DateFormat('EEE, MMM d, HH:mm').format(mondayMorningTime)} (simulated)",
@@ -1018,6 +1079,7 @@ class _LocationScreenState extends State<LocationScreen>
       currentLatitude: _currentLatitude,
       currentLongitude: _currentLongitude,
       dayOffStatusText: dayOffStatusText,
+      hasRealGpsData: _hasRealGpsData,
     );
   }
 }
@@ -1030,6 +1092,7 @@ class TopInfoDisplayWidget extends StatelessWidget {
   final double currentLatitude;
   final double currentLongitude;
   final String dayOffStatusText;
+  final bool hasRealGpsData;
 
   const TopInfoDisplayWidget({
     super.key,
@@ -1040,6 +1103,7 @@ class TopInfoDisplayWidget extends StatelessWidget {
     required this.currentLatitude,
     required this.currentLongitude,
     required this.dayOffStatusText,
+    required this.hasRealGpsData,
   });
 
   String? _getDistanceToStation() {
@@ -1047,6 +1111,11 @@ class TopInfoDisplayWidget extends StatelessWidget {
     if (displayTrackingMode != LocationConstants.trackingModeMorning &&
         displayTrackingMode != LocationConstants.trackingModeAfternoon) {
       return null;
+    }
+
+    // Check if we have real GPS data
+    if (!hasRealGpsData) {
+      return "No GPS location";
     }
 
     // Determine which station to use based on tracking mode
