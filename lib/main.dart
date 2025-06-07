@@ -11,6 +11,14 @@ import 'helpers/location_permission_helper.dart';
 import 'services/location_service.dart';
 import 'widgets/location_status_widget.dart';
 import 'constants/location_constants.dart';
+import 'package:flutter_foreground_task/models/notification_channel_importance.dart';
+import 'package:flutter_foreground_task/models/notification_priority.dart';
+import 'package:flutter_foreground_task/models/notification_icon_data.dart';
+import 'package:flutter_foreground_task/models/resource_type.dart';
+import 'package:flutter_foreground_task/models/resource_prefix.dart';
+import 'package:flutter_foreground_task/models/foreground_task_options.dart';
+import 'package:flutter_foreground_task/models/android_notification_options.dart';
+import 'package:flutter_foreground_task/models/ios_notification_options.dart';
 
 // App version
 const String appVersion = '1.0.1';
@@ -18,6 +26,33 @@ const String appVersion = '1.0.1';
 @pragma('vm:entry-point')
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Flutter Foreground Task
+  await FlutterForegroundTask.init(
+    androidNotificationOptions: AndroidNotificationOptions(
+      channelId: 'vre_watch_channel',
+      channelName: 'VRE Watch Service',
+      channelDescription:
+          'This notification is used for the VRE Watch service.',
+      channelImportance: NotificationChannelImportance.high,
+      priority: NotificationPriority.high,
+    ),
+    iosNotificationOptions: const IOSNotificationOptions(
+      showNotification: true,
+      playSound: false,
+    ),
+    foregroundTaskOptions: const ForegroundTaskOptions(
+      interval: 5000,
+      isOnceEvent: false,
+      autoRunOnBoot: false,
+      allowWakeLock: true,
+      allowWifiLock: true,
+      notificationChannelId: 'vre_watch_channel',
+      initialNotificationTitle: 'VRE Watch',
+      initialNotificationContent: 'Initializing...',
+    ),
+  );
+
   FlutterForegroundTask.initCommunicationPort();
   runApp(const MyApp());
 }
@@ -192,13 +227,16 @@ class _LocationScreenState extends State<LocationScreen>
   Future<void> _checkAndRequestPermissions() async {
     bool hasPermission =
         await LocationPermissionHelper.requestLocationPermissions(context);
-// Also request overlay permission for better alerts
+    // Also request overlay permission for better alerts
     await LocationPermissionHelper.requestOverlayPermission(context);
     if (mounted) {
       setState(() {
-        _locationStatus = hasPermission
-            ? "Location permission granted."
-            : "Location permission denied.";
+        // Only show status if permission was denied
+        if (!hasPermission) {
+          _locationStatus = "Location permission denied";
+        } else {
+          _locationStatus = ""; // Clear status when everything is fine
+        }
       });
     }
   }
@@ -369,19 +407,20 @@ class _LocationScreenState extends State<LocationScreen>
     }
 
     // After LocationPermissionHelper runs, explicitly check for "Allow all the time" on Android
-    // This check is now correctly placed *after* the initial permission grant
-    // and before proceeding to start the service.
     if (Theme.of(context).platform == TargetPlatform.android) {
-      // Check if running on Android
       LocationPermission currentPermissionStatus =
           await Geolocator.checkPermission();
       if (currentPermissionStatus != LocationPermission.always) {
         _showToast(
             "For reliable background tracking, please set location permission to 'Allow all the time' in app settings.");
-        // Optionally, you could also open settings again here:
-        // await Geolocator.openAppSettings();
-        return; // Prevent starting the service if "Allow all the time" is not granted
+        return;
       }
+    }
+
+    if (mounted) {
+      setState(() {
+        _locationStatus = ""; // Clear status when starting
+      });
     }
 
     if (!await FlutterForegroundTask.isRunningService) {
@@ -391,35 +430,35 @@ class _LocationScreenState extends State<LocationScreen>
       if (mounted) {
         setState(() {
           _isServiceRunning = success;
-          _locationStatus = success
-              ? "Background tracking started."
-              : "Failed to start background tracking.";
+          // Only show status if there was an error
+          if (!success) {
+            _locationStatus = "Failed to start background tracking";
+          }
         });
       }
-      _showToast(success
-          ? "Background tracking started."
-          : "Failed to start background tracking.");
     } else {
       _showToast("Background tracking is already running.");
     }
   }
 
   Future<void> _stopBackgroundTracking() async {
+    if (mounted) {
+      setState(() {
+        _locationStatus = ""; // Clear status when stopping
+      });
+    }
     final ServiceRequestResult result =
         await FlutterForegroundTask.stopService();
     final bool success = result is ServiceRequestSuccess;
-
     if (mounted) {
       setState(() {
         _isServiceRunning = !success;
-        _locationStatus = success
-            ? "Background tracking stopped."
-            : "Failed to stop background tracking.";
+        // Only show status if there was an error
+        if (!success) {
+          _locationStatus = "Failed to stop background tracking";
+        }
       });
     }
-    _showToast(success
-        ? "Background tracking stopped."
-        : "Failed to stop background tracking.");
   }
 
   void _showAlert(String title, String message) {
@@ -455,6 +494,14 @@ class _LocationScreenState extends State<LocationScreen>
     final DateTime now = _getCurrentTimeForLogic();
     final String currentDateStr = DateFormat('yyyy-MM-dd').format(now);
     final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    // Don't apply defaults if we're in inactive mode (weekend or day off)
+    if (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday) {
+      if (_currentTrain != _trainNone) {
+        await _switchToTrain(_trainNone, "Weekend mode - no train selected");
+      }
+      return;
+    }
 
     // Reset applied dates if the day has changed
     if (_morningDefaultAppliedDate != null &&
@@ -1095,9 +1142,9 @@ class TopInfoDisplayWidget extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Text(
+          const Text(
             'v$appVersion',
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.grey,
               fontSize: 12,
             ),

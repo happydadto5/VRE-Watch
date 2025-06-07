@@ -32,7 +32,7 @@ android {
         applicationId = "com.example.vre_new"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        minSdk = 21 // Set minimum SDK to 21 for foreground service support
         // Explicitly setting targetSdk to a version known to work well with flutter_local_notifications 15.1.1
         targetSdk = 34 // Setting target SDK to 34
         versionCode = flutter.versionCode
@@ -57,11 +57,10 @@ dependencies {
     // Add the core library desugaring dependency
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4") // Correct Kotlin DSL syntax for dependency
     implementation("androidx.multidex:multidex:2.0.1")
-    // Explicitly define versions for potentially conflicting AndroidX libraries
-    // These are less critical with the resolution strategy below, but can be kept if needed.
-    // implementation("androidx.core:core-ktx:1.13.1")
-    // implementation("androidx.appcompat:appcompat:1.7.0")
-    // implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.core:core:1.13.1")
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
 
     // Removed duplicate tasks.withType<JavaCompile> blocks for clarity,
     // keeping only one instance as they appear identical in your provided content.

@@ -38,16 +38,6 @@
         android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
         android:exported="false" android:stopWithTask="true" android:foregroundServiceType="location"> </service>
 
-    <receiver
-        android:name="com.pravera.flutter_foreground_task.service.BootReceiver"
-        android:exported="true"> <intent-filter>
-        <action android:name="android.intent.action.BOOT_COMPLETED"/>
-        <category android:name="android.intent.category.DEFAULT"/> </intent-filter>
-    </receiver>
-
-    <meta-data
-        android:name="flutterEmbedding"
-        android:value="2" />
     <receiver android:name="com.pravera.flutter_foreground_task.boot.BootReceiver"
         android:enabled="true"
         android:exported="true">
@@ -56,6 +46,10 @@
             <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
         </intent-filter>
     </receiver>
+
+    <meta-data
+        android:name="flutterEmbedding"
+        android:value="2" />
 
 </application>
 

@@ -174,10 +174,9 @@
     },
     {
       "name": "flutter_foreground_task",
-      "version": "9.1.0",
+      "version": "6.5.0",
       "dependencies": [
         "flutter",
-        "platform",
         "plugin_platform_interface",
         "shared_preferences"
       ]
@@ -616,11 +615,6 @@
       ]
     },
     {
-      "name": "platform",
-      "version": "3.1.6",
-      "dependencies": []
-    },
-    {
       "name": "plugin_platform_interface",
       "version": "2.1.8",
       "dependencies": [
@@ -742,6 +736,11 @@
     {
       "name": "ffi",
       "version": "2.1.4",
+      "dependencies": []
+    },
+    {
+      "name": "platform",
+      "version": "3.1.6",
       "dependencies": []
     },
     {

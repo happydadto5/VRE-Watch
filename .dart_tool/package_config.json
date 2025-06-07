@@ -117,15 +117,15 @@
     },
     {
       "name": "flutter",
-      "rootUri": "file:///C:/flutter/packages/flutter",
+      "rootUri": "file:///c:/flutter/packages/flutter",
       "packageUri": "lib/",
       "languageVersion": "3.7"
     },
     {
       "name": "flutter_foreground_task",
-      "rootUri": "file:///C:/Users/happy/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_foreground_task-9.1.0",
+      "rootUri": "file:///C:/Users/happy/AppData/Local/Pub/Cache/hosted/pub.dev/flutter_foreground_task-6.5.0",
       "packageUri": "lib/",
-      "languageVersion": "3.4"
+      "languageVersion": "2.18"
     },
     {
       "name": "flutter_launcher_icons",
@@ -141,7 +141,7 @@
     },
     {
       "name": "flutter_test",
-      "rootUri": "file:///C:/flutter/packages/flutter_test",
+      "rootUri": "file:///c:/flutter/packages/flutter_test",
       "packageUri": "lib/",
       "languageVersion": "3.7"
     },
@@ -153,7 +153,7 @@
     },
     {
       "name": "flutter_web_plugins",
-      "rootUri": "file:///C:/flutter/packages/flutter_web_plugins",
+      "rootUri": "file:///c:/flutter/packages/flutter_web_plugins",
       "packageUri": "lib/",
       "languageVersion": "3.7"
     },
@@ -363,7 +363,7 @@
     },
     {
       "name": "sky_engine",
-      "rootUri": "file:///C:/flutter/bin/cache/pkg/sky_engine",
+      "rootUri": "file:///c:/flutter/bin/cache/pkg/sky_engine",
       "packageUri": "lib/",
       "languageVersion": "3.7"
     },
@@ -526,7 +526,7 @@
   ],
   "generator": "pub",
   "generatorVersion": "3.8.0",
-  "flutterRoot": "file:///C:/flutter",
+  "flutterRoot": "file:///c:/flutter",
   "flutterVersion": "3.32.0",
   "pubCache": "file:///C:/Users/happy/AppData/Local/Pub/Cache"
 }
