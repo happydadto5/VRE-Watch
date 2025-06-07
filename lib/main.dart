@@ -15,7 +15,7 @@ import 'package:flutter_foreground_task/models/notification_channel_importance.d
 import 'package:flutter_foreground_task/models/notification_priority.dart';
 
 // App version
-const String appVersion = '1.0.5';
+const String appVersion = '1.0.7';
 
 @pragma('vm:entry-point')
 void main() async {
@@ -98,6 +98,8 @@ class _LocationScreenState extends State<LocationScreen>
   String? _morningDefaultAppliedDate; // Tracks YYYY-MM-DD
   String? _afternoonDefaultAppliedDate; // Tracks YYYY-MM-DD
 
+  Map<String, double>? _currentTargetStationCoordinates;
+
   @override
   void initState() {
     super.initState();
@@ -115,10 +117,45 @@ class _LocationScreenState extends State<LocationScreen>
       }
     });
     _startOrRestartTrainDefaultsTimer();
-    _startBackgroundTracking();
+
+    // AUTO-START background service immediately
+    _autoStartBackgroundService();
+
     // Auto-select default train on app launch if none selected
     if (_currentTrain == "None") {
       _checkAndApplyAutomaticTrainDefaults();
+    }
+  }
+
+  void _autoStartBackgroundService() async {
+    print('UI: *** AUTO-STARTING BACKGROUND SERVICE ***');
+    _startBackgroundTracking();
+  }
+
+  void _testDirectGPS() async {
+    print('UI: *** TESTING DIRECT GPS ***');
+    try {
+      final Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.bestForNavigation,
+        timeLimit: const Duration(seconds: 10),
+      );
+
+      print(
+          'UI: *** DIRECT GPS SUCCESS *** ${position.latitude}, ${position.longitude}');
+
+      if (mounted) {
+        setState(() {
+          _currentLatitude = position.latitude;
+          _currentLongitude = position.longitude;
+          _hasRealGpsData = true;
+        });
+      }
+
+      _showToast(
+          'GPS: ${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}');
+    } catch (e) {
+      print('UI: *** DIRECT GPS FAILED *** $e');
+      _showToast('GPS Error: $e');
     }
   }
 
@@ -169,6 +206,12 @@ class _LocationScreenState extends State<LocationScreen>
     if (data is Map<String, dynamic>) {
       print('UI: *** RECEIVED DATA FROM BACKGROUND *** $data');
 
+      // Check background service version
+      if (data.containsKey('backgroundServiceVersion')) {
+        String bgVersion = data['backgroundServiceVersion'];
+        print('UI: *** BACKGROUND SERVICE VERSION: $bgVersion ***');
+      }
+
       if (mounted) {
         setState(() {
           // Update GPS coordinates from background service
@@ -181,6 +224,9 @@ class _LocationScreenState extends State<LocationScreen>
               _hasRealGpsData = true;
               print(
                   'UI: *** GPS UPDATED *** ${_currentLatitude.toStringAsFixed(4)}, ${_currentLongitude.toStringAsFixed(4)}');
+
+              // Calculate and update distance immediately
+              _updateDistanceToStation();
             }
           }
 
@@ -198,6 +244,20 @@ class _LocationScreenState extends State<LocationScreen>
       }
     } else {
       print('UI: *** RECEIVED NON-MAP DATA *** $data');
+    }
+  }
+
+  void _updateDistanceToStation() {
+    if (!_hasRealGpsData) return;
+
+    double distance = _getDistanceToStation();
+    print('UI: *** DISTANCE UPDATED *** $distance miles');
+
+    if (mounted) {
+      setState(() {
+        _locationStatus =
+            "${distance.toStringAsFixed(1)} miles to ${_getTargetStationName()}";
+      });
     }
   }
 
@@ -382,21 +442,24 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   void _startBackgroundTracking() async {
-    if (!_isServiceRunning) {
-      await FlutterForegroundTask.startService(
-        notificationTitle: 'VRE Watch Active',
-        notificationText: 'Tracking location for $_currentTrain',
-        callback: startCallback,
-      );
-      FlutterForegroundTask.sendDataToTask({
-        'train': _currentTrain,
-        'trackingMode': _trackingMode,
+    // Force restart to ensure latest code is running
+    print('UI: *** FORCE RESTARTING BACKGROUND SERVICE ***');
+    await FlutterForegroundTask.stopService();
+    await Future.delayed(Duration(seconds: 1)); // Wait a moment
+
+    await FlutterForegroundTask.startService(
+      notificationTitle: 'VRE Watch Active v1.0.5',
+      notificationText: 'Tracking location for $_currentTrain',
+      callback: startCallback,
+    );
+    FlutterForegroundTask.sendDataToTask({
+      'train': _currentTrain,
+      'trackingMode': _trackingMode,
+    });
+    if (mounted) {
+      setState(() {
+        _isServiceRunning = true;
       });
-      if (mounted) {
-        setState(() {
-          _isServiceRunning = true;
-        });
-      }
     }
   }
 
@@ -454,106 +517,48 @@ class _LocationScreenState extends State<LocationScreen>
     }
 
     // Reset applied dates if the day has changed
-    if (_morningDefaultAppliedDate != null &&
-        _morningDefaultAppliedDate != currentDateStr) {
-      if (mounted) {
-        setState(() {
-          _morningDefaultAppliedDate = null;
-        });
-      }
+    if (_morningDefaultAppliedDate != currentDateStr) {
+      _morningDefaultAppliedDate = null;
       await prefs.remove(LocationConstants.prefMorningDefaultAppliedDate);
       print(
-        "UI: Reset morning default applied date for new day: $currentDateStr",
-      );
+          'UI: Reset morning default applied date for new day: $currentDateStr');
     }
-    if (_afternoonDefaultAppliedDate != null &&
-        _afternoonDefaultAppliedDate != currentDateStr) {
-      if (mounted) {
-        setState(() {
-          _afternoonDefaultAppliedDate = null;
-        });
-      }
+    if (_afternoonDefaultAppliedDate != currentDateStr) {
+      _afternoonDefaultAppliedDate = null;
       await prefs.remove(LocationConstants.prefAfternoonDefaultAppliedDate);
       print(
-        "UI: Reset afternoon default applied date for new day: $currentDateStr",
-      );
+          'UI: Reset afternoon default applied date for new day: $currentDateStr');
     }
 
-    // Morning default logic:
-    // Apply if it's between 5:30 AM (inclusive) and 12:00 PM (exclusive)
-    // and morning default has not yet been applied today.
+    // Morning default logic (5:30 AM to 8:00 AM)
     bool isMorningWindow =
-        (now.hour == 5 && now.minute >= 30) || (now.hour > 5 && now.hour < 12);
-
+        (now.hour == 5 && now.minute >= 30) || (now.hour > 5 && now.hour < 8);
     print(
-        "UI: DEBUG - Time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}, isMorningWindow: $isMorningWindow, _morningDefaultAppliedDate: $_morningDefaultAppliedDate, currentDateStr: $currentDateStr, currentTrain: $_currentTrain");
+        'UI: DEBUG - Time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}, isMorningWindow: $isMorningWindow');
 
-    if (isMorningWindow) {
-      if (_morningDefaultAppliedDate != currentDateStr) {
-        print(
-          "UI: Processing morning auto train switch check for $currentDateStr (time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}). Current train: $_currentTrain",
-        );
-        if (_currentTrain == _trainNone ||
-            _currentTrain == _trainEvening1 ||
-            _currentTrain == _trainEvening2 ||
-            _currentTrain == _trainEvening3) {
-          print("UI: TRIGGERING morning train switch to $_trainMorning1");
-          await _switchToTrain(
-            _trainMorning1,
-            "Defaulted to morning train: $_trainMorning1 at ${now.hour}:${now.minute.toString().padLeft(2, '0')}",
-          );
-        } else {
-          print(
-              "UI: NOT switching - current train $_currentTrain is already a morning train");
-        }
-        // Mark as applied for today
-        if (mounted) {
-          setState(() {
-            _morningDefaultAppliedDate = currentDateStr;
-          });
-        }
+    if (isMorningWindow && _morningDefaultAppliedDate != currentDateStr) {
+      print('UI: Processing morning auto train switch check');
+      if (_currentTrain == _trainNone) {
+        print('UI: Switching to morning train $_trainMorning1');
+        await _switchToTrain(_trainMorning1, "Auto-selected morning train 326");
+        _morningDefaultAppliedDate = currentDateStr;
         await prefs.setString(
           LocationConstants.prefMorningDefaultAppliedDate,
           currentDateStr,
         );
-        print(
-          "UI: Morning default for $currentDateStr (train $_trainMorning1) processed and marked at ${now.hour}:${now.minute.toString().padLeft(2, '0')}.",
-        );
-      } else {
-        print("UI: Morning default already applied today ($currentDateStr)");
       }
-    } else {
-      print("UI: Not in morning window (5:30 AM - 12:00 PM)");
     }
-
-    // Afternoon default logic:
-    // Apply if it's 12:00 PM (noon) or later
-    // and afternoon default has not yet been applied today.
-    if (now.hour >= 12) {
-      if (_afternoonDefaultAppliedDate != currentDateStr) {
-        print(
-          "UI: Processing afternoon auto train switch check for $currentDateStr (time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}). Current train: $_currentTrain",
-        );
-        if (_currentTrain == _trainNone ||
-            _currentTrain == _trainMorning1 ||
-            _currentTrain == _trainMorning2) {
-          await _switchToTrain(
-            _trainEvening1,
-            "Defaulted to afternoon train: $_trainEvening1 at ${now.hour}:${now.minute.toString().padLeft(2, '0')}",
-          );
-        }
-        // Mark as applied for today
-        if (mounted) {
-          setState(() {
-            _afternoonDefaultAppliedDate = currentDateStr;
-          });
-        }
+    // Afternoon default logic (after 8:00 AM)
+    else if (now.hour >= 8 && _afternoonDefaultAppliedDate != currentDateStr) {
+      print('UI: Processing afternoon auto train switch check');
+      if (_currentTrain == _trainNone) {
+        print('UI: Switching to afternoon train $_trainEvening1');
+        await _switchToTrain(
+            _trainEvening1, "Auto-selected afternoon train 331");
+        _afternoonDefaultAppliedDate = currentDateStr;
         await prefs.setString(
           LocationConstants.prefAfternoonDefaultAppliedDate,
           currentDateStr,
-        );
-        print(
-          "UI: Afternoon default for $currentDateStr (train $_trainEvening1) processed and marked at ${now.hour}:${now.minute.toString().padLeft(2, '0')}.",
         );
       }
     }
@@ -834,24 +839,24 @@ class _LocationScreenState extends State<LocationScreen>
     });
   }
 
-  Future<void> _switchToTrain(String newTrain, String toastMessage) async {
-    if (!mounted) return;
-    bool trainChanged = _currentTrain != newTrain;
-
-    setState(() {
-      _currentTrain = newTrain;
-      // Don't override _trackingMode here - let the background service manage it
-    });
-    locationService.currentTrain = _currentTrain;
-
-    if (trainChanged) {
-      _showToast(toastMessage);
-      await _saveState(); // This will save the updated _currentTrain and the (potentially temporary) _trackingMode
-      // FlutterForegroundTask.sendDataToTask({
-      //   'action': 'updateTrain',
-      //   'currentTrain': _currentTrain,
-      // });
+  Future<void> _switchToTrain(String newTrain, String reason) async {
+    print('UI: *** SWITCHING TRAIN *** $newTrain - $reason');
+    if (mounted) {
+      setState(() {
+        _currentTrain = newTrain;
+      });
     }
+    locationService.currentTrain = _currentTrain;
+    _updateTargetStation();
+    await _saveState();
+    _showToast("Train set to: $_currentTrain");
+
+    // Notify background service of train change
+    FlutterForegroundTask.sendDataToTask({
+      'action': 'updateTrain',
+      'currentTrain': _currentTrain,
+      'reason': reason
+    });
   }
 
   String _getDisplayTrackingMode(String trackingMode) {
@@ -937,6 +942,60 @@ class _LocationScreenState extends State<LocationScreen>
         'train': train,
         'trackingMode': trackingMode,
       });
+    }
+  }
+
+  String _getTargetStationName() {
+    if (_currentTrain == "None") return "station";
+
+    // Morning trains go to Union Station
+    if (_currentTrain == _trainMorning1 || _currentTrain == _trainMorning2) {
+      return "Union Station";
+    }
+
+    // Afternoon trains go to Rolling Road
+    return "Rolling Road";
+  }
+
+  double _getDistanceToStation() {
+    if (!_hasRealGpsData) return 0.0;
+
+    // Get target station coordinates based on train
+    Map<String, double> targetCoords;
+    if (_currentTrain == _trainMorning1 || _currentTrain == _trainMorning2) {
+      // Morning trains go to Union Station
+      targetCoords = LocationConstants.unionStationCoordinates;
+    } else if (_currentTrain == _trainEvening1 ||
+        _currentTrain == _trainEvening2 ||
+        _currentTrain == _trainEvening3) {
+      // Afternoon trains go to Rolling Road
+      targetCoords = LocationConstants.rollingRoadCoordinates;
+    } else {
+      return 0.0; // No train selected
+    }
+
+    // Calculate distance using Geolocator
+    double distanceInMeters = Geolocator.distanceBetween(
+        _currentLatitude,
+        _currentLongitude,
+        targetCoords['latitude']!,
+        targetCoords['longitude']!);
+
+    // Convert to miles
+    return distanceInMeters * 0.000621371; // meters to miles conversion
+  }
+
+  void _updateTargetStation() {
+    if (_currentTrain == _trainMorning1 || _currentTrain == _trainMorning2) {
+      _currentTargetStationCoordinates =
+          LocationConstants.unionStationCoordinates;
+    } else if (_currentTrain == _trainEvening1 ||
+        _currentTrain == _trainEvening2 ||
+        _currentTrain == _trainEvening3) {
+      _currentTargetStationCoordinates =
+          LocationConstants.rollingRoadCoordinates;
+    } else {
+      _currentTargetStationCoordinates = null;
     }
   }
 
@@ -1045,6 +1104,11 @@ class _LocationScreenState extends State<LocationScreen>
               ),
               const SizedBox(height: 10),
               ElevatedButton(
+                onPressed: _testDirectGPS,
+                child: const Text('TESTING: Get GPS Now'),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
                 onPressed: _isServiceRunning
                     ? _stopBackgroundTracking
                     : _startBackgroundTracking,
@@ -1055,8 +1119,8 @@ class _LocationScreenState extends State<LocationScreen>
                 ),
                 child: Text(
                   _isServiceRunning
-                      ? 'Stop Background Tracking'
-                      : 'Start Background Tracking',
+                      ? 'TESTING: Stop GPS Service'
+                      : 'TESTING: Restart GPS Service',
                 ),
               ),
             ],
@@ -1121,11 +1185,9 @@ class TopInfoDisplayWidget extends StatelessWidget {
     // Determine which station to use based on tracking mode
     Map<String, double> targetStation;
     if (displayTrackingMode == LocationConstants.trackingModeMorning) {
-      targetStation = LocationConstants
-          .unionStation; // Fixed: Morning trains go TO Union Station
+      targetStation = LocationConstants.unionStationCoordinates;
     } else {
-      targetStation = LocationConstants
-          .rollingRoadStation; // Fixed: Afternoon trains go TO Rolling Road
+      targetStation = LocationConstants.rollingRoadCoordinates;
     }
 
     // Calculate distance in meters

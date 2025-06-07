@@ -86,9 +86,9 @@ class LocationConstants {
   static const double kingStreetAlertRadius = 1000.0;
 
 // Add these lines for Union Station
-  static const Map<String, double> unionStation = {
-    'latitude': 38.8971,
-    'longitude': -77.0063,
+  static const Map<String, double> unionStationCoordinates = {
+    'latitude': 38.8977,
+    'longitude': -77.0065
   };
   static const double unionStationAlertRadius =
       1200.0; // Or your preferred radius
@@ -167,4 +167,10 @@ class LocationConstants {
     pauseLocationUpdatesAutomatically: true,
     showBackgroundLocationIndicator: false,
   );
+
+  // Station coordinates
+  static const Map<String, double> rollingRoadCoordinates = {
+    'latitude': 38.8075,
+    'longitude': -77.2653
+  };
 }
