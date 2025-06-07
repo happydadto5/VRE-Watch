@@ -10,7 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 // Corrected relative importss
 // Corrected relative importss Big change here
-// bigger chagne here.
+// Bigger change here.
 
 
 import 'helpers/location_permission_helper.dart';
