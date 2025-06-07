@@ -28,7 +28,10 @@ class LocationConstants {
   // Reminder Messages
   static const String reminderMsgGetReady = "Leave Shortly";
   static const String reminderMsgCatchTrain = "Catch Train";
-  static const String reminderMsgTurnOffAndCatchTrain = "Off, Lock and Catch Train"; // New
+  static const String reminderMsgLeaveHouse =
+      "Leave House"; // New message for morning trains
+  static const String reminderMsgTurnOffAndCatchTrain =
+      "Off, Lock and Catch Train"; // New
 // --- New Tracking Mode Constants ---
   static const String trackingModeDayOff = "Day Off";
   static const String trackingModeMorning = "Morning";
@@ -82,15 +85,14 @@ class LocationConstants {
   };
   static const double kingStreetAlertRadius = 1000.0;
 
-
 // Add these lines for Union Station
   static const Map<String, double> unionStation = {
     'latitude': 38.8971,
     'longitude': -77.0063,
   };
-  static const double unionStationAlertRadius = 1200.0; // Or your preferred radius
+  static const double unionStationAlertRadius =
+      1200.0; // Or your preferred radius
 // End of lines to add
-
 
   // Critical battery threshold
   static const int criticalBatteryThreshold = 20;
@@ -118,27 +120,32 @@ class LocationConstants {
   static const String prefHomeLon = 'home_lon';
   static const String prefWorkLat = 'work_lat';
   static const String prefWorkLon = 'work_lon';
-  static const String prefDayOffDate = 'day_off_date'; // For storing the user's selected day off
-  static const String prefMorningDefaultAppliedDate = 'morning_default_applied_date';
-  static const String prefAfternoonDefaultAppliedDate = 'afternoon_default_applied_date';
+  static const String prefDayOffDate =
+      'day_off_date'; // For storing the user's selected day off
+  static const String prefMorningDefaultAppliedDate =
+      'morning_default_applied_date';
+  static const String prefAfternoonDefaultAppliedDate =
+      'afternoon_default_applied_date';
 // Adaptive Update Intervals (milliseconds)
-  static const int interval1MileMillis = 15000;    // 15 seconds
-  static const int interval2MilesMillis = 30000;   // 30 seconds (for 1-1.99 miles)
+  static const int interval1MileMillis = 15000; // 15 seconds
+  static const int interval2MilesMillis =
+      30000; // 30 seconds (for 1-1.99 miles)
   // Time boundaries for tracking modes (24-hour format)
   static const int morningModeStartHour = 5;
   static const int morningModeStartMinute = 30;
   static const int morningModeEndHour = 10;
   static const int workdayModeEndHour = 15; // 3:00 PM
   static const int afternoonModeStartHour = 15; // 3:00 PM
-  static const int interval6MilesMillis = 60000;   // 1 minute (for 2-5.99 miles)
-  static const int intervalFarMillis = 120000;     // 2 minutes (for 6+ miles or no target)
-  static const int intervalPostArrivalMillis = 300000; // 5 minutes (for checks after arrival)
+  static const int interval6MilesMillis = 60000; // 1 minute (for 2-5.99 miles)
+  static const int intervalFarMillis =
+      120000; // 2 minutes (for 6+ miles or no target)
+  static const int intervalPostArrivalMillis =
+      300000; // 5 minutes (for checks after arrival)
 
   // Distance thresholds (meters)
   static const double distance1MileMeters = 1609.34;
   static const double distance2MilesMeters = 3218.69;
   static const double distance6MilesMeters = 9656.06; // Approx 6 miles
-
 
   // Location settings for Android (removed const)
   static final LocationSettings androidSettings = AndroidSettings(

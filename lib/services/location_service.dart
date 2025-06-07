@@ -31,17 +31,15 @@ class LocationTaskHandler extends TaskHandler {
   final Battery _battery = Battery();
   DateTime _lastCheckedDateForReminders = DateTime.now();
 
-
   final Set<String> _todaysIssuedReminders = <String>{};
-  int _currentUpdateIntervalMillis = LocationConstants
-      .mediumUpdateFrequency; // Initialize with a default
+  int _currentUpdateIntervalMillis =
+      LocationConstants.mediumUpdateFrequency; // Initialize with a default
   Map<String, double>? _currentTargetStationCoordinates;
   String? _dayOffDateIsoString; // To store the ISO string of the user's day off
   DateTime _effectiveCurrentTime = DateTime.now(); // Initialize with real time
   Timer? _rollingRoadRepeatTimer;
   bool _rollingRoadAlertRepeated = false;
   bool _twoMileAlertIssuedForRollingRoad = false;
-
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -102,17 +100,16 @@ class LocationTaskHandler extends TaskHandler {
     print('LocationTaskHandler onReceiveData: $data');
     if (data is Map<String, dynamic>) {
       final String? action = data['action'] as String?;
-      if (action == LocationConstants.actionAcknowledge) { // [cite: 76]
+      if (action == LocationConstants.actionAcknowledge) {
+        // [cite: 76]
         acknowledgeAlert();
       } else if (action == 'updateTrain') {
         final String? newTrain = data['currentTrain'] as String?;
-
 
         if (newTrain != null && _currentTrain != newTrain) {
           print(
               'LocationTaskHandler: Updating currentTrain to $newTrain (was $_currentTrain)');
           _currentTrain = newTrain;
-
 
           _todaysIssuedReminders.clear();
           print(
@@ -122,7 +119,6 @@ class LocationTaskHandler extends TaskHandler {
           _cancelRollingRoadRepeatTimer();
           _rollingRoadAlertRepeated = false;
           _twoMileAlertIssuedForRollingRoad = false;
-
 
           _updateTargetStation(); // Update target for new train
           // Set a default active interval; _updateLocation will then adapt it.
@@ -139,50 +135,40 @@ class LocationTaskHandler extends TaskHandler {
           print(
               'LocationTaskHandler: Sent confirmed train update to UI: $_currentTrain');
           // --- END CODE TO INSERT ---
-
-
         }
-      }
-
-
-      else if (action == 'updateDayOffDate') {
+      } else if (action == 'updateDayOffDate') {
         _dayOffDateIsoString = data['dayOffDate'] as String?;
         // When day off changes, also clear today's issued reminders as the context might change
         _todaysIssuedReminders.clear();
         print(
             'LocationTaskHandler: Updated dayOffDate to $_dayOffDateIsoString and cleared reminders.');
-      }
-      else if (action == 'updateEffectiveTime') {
+      } else if (action == 'updateEffectiveTime') {
         print('LTH_ONRECEIVE: action=updateEffectiveTime');
         final String? timeStr = data['effectiveTime'] as String?;
         if (timeStr != null) {
           print('LTH_ONRECEIVE: effectiveTime string received: $timeStr');
           final DateTime? newEffectiveTime = DateTime.tryParse(timeStr);
           if (newEffectiveTime != null) {
-            print('LTH_ONRECEIVE: Parsed newEffectiveTime: ${newEffectiveTime
-                .toIso8601String()}');
-            bool dayChanged = _effectiveCurrentTime.year !=
-                newEffectiveTime.year ||
-                _effectiveCurrentTime.month != newEffectiveTime.month ||
-                _effectiveCurrentTime.day != newEffectiveTime.day;
+            print(
+                'LTH_ONRECEIVE: Parsed newEffectiveTime: ${newEffectiveTime.toIso8601String()}');
+            bool dayChanged =
+                _effectiveCurrentTime.year != newEffectiveTime.year ||
+                    _effectiveCurrentTime.month != newEffectiveTime.month ||
+                    _effectiveCurrentTime.day != newEffectiveTime.day;
 
             _effectiveCurrentTime = newEffectiveTime;
             print(
-                'LTH_ONRECEIVE: _effectiveCurrentTime updated to: ${_effectiveCurrentTime
-                    .toIso8601String()}, dayChanged: $dayChanged');
+                'LTH_ONRECEIVE: _effectiveCurrentTime updated to: ${_effectiveCurrentTime.toIso8601String()}, dayChanged: $dayChanged');
 
             if (dayChanged) {
               print(
-                  'LTH_ONRECEIVE: Effective day changed. Clearing reminders. Old _lastCheckedDateForReminders: ${_lastCheckedDateForReminders
-                      .toIso8601String()}');
+                  'LTH_ONRECEIVE: Effective day changed. Clearing reminders. Old _lastCheckedDateForReminders: ${_lastCheckedDateForReminders.toIso8601String()}');
               print(
-                  'LocationTaskHandler: Effective day changed via UI update to ${_effectiveCurrentTime
-                      .toIso8601String()}. Forcing reminder state refresh.');
+                  'LocationTaskHandler: Effective day changed via UI update to ${_effectiveCurrentTime.toIso8601String()}. Forcing reminder state refresh.');
               _todaysIssuedReminders.clear();
               _lastCheckedDateForReminders = _effectiveCurrentTime;
               print(
-                  'LTH_ONRECEIVE: New _lastCheckedDateForReminders: ${_lastCheckedDateForReminders
-                      .toIso8601String()}');
+                  'LTH_ONRECEIVE: New _lastCheckedDateForReminders: ${_lastCheckedDateForReminders.toIso8601String()}');
             }
           }
         }
@@ -190,23 +176,19 @@ class LocationTaskHandler extends TaskHandler {
     }
   }
 
-
   Future<void> _checkAndIssueDepartureReminders() async {
-    print('LTH_REMINDERS: Entered. EffectiveTime: ${_effectiveCurrentTime
-        .toIso8601String()}, CurrentTrain: $_currentTrain, LastCheckedDay: ${_lastCheckedDateForReminders
-        .toIso8601String()}, TodaysIssued: ${_todaysIssuedReminders
-        .toString()}');
+    print(
+        'LTH_REMINDERS: Entered. EffectiveTime: ${_effectiveCurrentTime.toIso8601String()}, CurrentTrain: $_currentTrain, LastCheckedDay: ${_lastCheckedDateForReminders.toIso8601String()}, TodaysIssued: ${_todaysIssuedReminders.toString()}');
     final DateTime now = _effectiveCurrentTime; // Use the time sent from UI
     print(
         'LTH_REMINDERS: Using "now" as: ${now.toIso8601String()} for checks.');
-
 
     await _checkAndApplyAutomaticTrainDefaultsInBackground(now);
 
     // 1. Weekday Check: Only operate on Monday-Friday
     if (now.weekday < DateTime.monday || now.weekday > DateTime.friday) {
-      print('LTH_REMINDERS: Exiting due to weekday check. now.weekday: ${now
-          .weekday}');
+      print(
+          'LTH_REMINDERS: Exiting due to weekday check. now.weekday: ${now.weekday}');
 
       // It's a weekend, so no reminders.
       // Optionally, clear reminders if you want a clean slate for Monday,
@@ -215,7 +197,6 @@ class LocationTaskHandler extends TaskHandler {
       return;
     }
 
-
 // Check if the day has changed, if so, reset issued reminders
     // This check is now more robustly handled when _effectiveCurrentTime is updated
     // from the UI, especially for large jumps in simulated time.
@@ -223,9 +204,8 @@ class LocationTaskHandler extends TaskHandler {
     // ensures consistency if onRepeatEvent is the primary trigger.
 
     DateTime currentDateOnly = DateTime(now.year, now.month, now.day);
-    DateTime lastCheckedDateOnly = DateTime(
-        _lastCheckedDateForReminders.year, _lastCheckedDateForReminders.month,
-        _lastCheckedDateForReminders.day);
+    DateTime lastCheckedDateOnly = DateTime(_lastCheckedDateForReminders.year,
+        _lastCheckedDateForReminders.month, _lastCheckedDateForReminders.day);
 
     if (!currentDateOnly.isAtSameMomentAs(lastCheckedDateOnly)) {
       print(
@@ -235,16 +215,16 @@ class LocationTaskHandler extends TaskHandler {
           now; // Update with the 'now' that represents the current effective day
     }
     print(
-        'LTH_REMINDERS: Passed weekday & day change logic. Current _todaysIssuedReminders: ${_todaysIssuedReminders
-            .toString()}');
+        'LTH_REMINDERS: Passed weekday & day change logic. Current _todaysIssuedReminders: ${_todaysIssuedReminders.toString()}');
 
 // 2. "Day Off" Check
     if (_dayOffDateIsoString != null && _dayOffDateIsoString!.isNotEmpty) {
-      final String currentDateIso = "${now.year}-${now.month.toString().padLeft(
-          2, '0')}-${now.day.toString().padLeft(2, '0')}";
+      final String currentDateIso =
+          "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
       if (_dayOffDateIsoString == currentDateIso) {
         // It is the designated "Day Off"
-        if (now.hour >= 20) { // Check if it's 8 PM (20:00) or later
+        if (now.hour >= 20) {
+          // Check if it's 8 PM (20:00) or later
           await _autoClearDayOffSetting(); // Call the new method to clear the day off
           // After clearing, we should still return to prevent further reminder processing for this tick
           // as the day off state has just been reset.
@@ -315,10 +295,9 @@ class LocationTaskHandler extends TaskHandler {
         isMorningTrain = false;
         break;
       default:
-      // Unknown train, do nothing
+        // Unknown train, do nothing
         return;
     }
-
 
     // Parse departure time
     final List<String> timeParts = departureTimeStr.split(':');
@@ -329,18 +308,17 @@ class LocationTaskHandler extends TaskHandler {
 
     if (hour == -1 || minute == -1) return; // Invalid time parts
 
-
-    final DateTime departureDateTime = DateTime(
-        now.year, now.month, now.day, hour, minute);
+    final DateTime departureDateTime =
+        DateTime(now.year, now.month, now.day, hour, minute);
 // Define reminder keys
     final String getReadyKey = "${_currentTrain}_getReady";
     final String catchTrainKey = "${_currentTrain}_catchTrain";
-    final String turnOffAndCatchTrainKey = "${_currentTrain}_turnOffAndCatchTrain"; // New key
-
+    final String turnOffAndCatchTrainKey =
+        "${_currentTrain}_turnOffAndCatchTrain"; // New key
 
 // --- Check "Get Ready to leave" Reminder ---
-    final DateTime getReadyReminderTime = departureDateTime.subtract(
-        Duration(minutes: getReadyLeadMinutes));
+    final DateTime getReadyReminderTime =
+        departureDateTime.subtract(Duration(minutes: getReadyLeadMinutes));
     if (!_todaysIssuedReminders.contains(getReadyKey) &&
         !now.isBefore(getReadyReminderTime) &&
         now.isBefore(departureDateTime)) {
@@ -351,35 +329,42 @@ class LocationTaskHandler extends TaskHandler {
     }
 
     // --- Check "Catch Train" Reminder ---
-    final DateTime catchTrainReminderTime = departureDateTime.subtract(
-        Duration(minutes: catchTrainLeadMinutes));
+    final DateTime catchTrainReminderTime =
+        departureDateTime.subtract(Duration(minutes: catchTrainLeadMinutes));
     if (!_todaysIssuedReminders.contains(catchTrainKey) &&
         !now.isBefore(catchTrainReminderTime) &&
         now.isBefore(departureDateTime)) {
       print('Issuing "Catch Train" reminder for train $_currentTrain');
       VolumeController().setVolume(1.0);
-      await _flutterTts.speak(LocationConstants.reminderMsgCatchTrain);
+
+      // Use different messages for morning vs afternoon trains
+      if (isMorningTrain) {
+        await _flutterTts.speak(LocationConstants.reminderMsgLeaveHouse);
+      } else {
+        await _flutterTts.speak(LocationConstants.reminderMsgCatchTrain);
+      }
+
       _todaysIssuedReminders.add(catchTrainKey);
     }
 
     // --- Check "Turn off and Catch Train" Reminder (Morning Trains Only) ---
     if (isMorningTrain) {
-      final DateTime turnOffAndCatchTrainReminderTime = departureDateTime
-          .subtract(const Duration(minutes: LocationConstants
-          .morningTurnOffAndCatchTrainLeadTimeMinutes));
+      final DateTime turnOffAndCatchTrainReminderTime =
+          departureDateTime.subtract(const Duration(
+              minutes: LocationConstants
+                  .morningTurnOffAndCatchTrainLeadTimeMinutes));
       if (!_todaysIssuedReminders.contains(turnOffAndCatchTrainKey) &&
           !now.isBefore(turnOffAndCatchTrainReminderTime) &&
           now.isBefore(departureDateTime)) {
         print(
             'Issuing "Turn off and Catch Train" reminder for train $_currentTrain');
         VolumeController().setVolume(1.0);
-        await _flutterTts.speak(
-            LocationConstants.reminderMsgTurnOffAndCatchTrain);
+        await _flutterTts
+            .speak(LocationConstants.reminderMsgTurnOffAndCatchTrain);
         _todaysIssuedReminders.add(turnOffAndCatchTrainKey);
       }
     }
   }
-
 
   Future<void> _autoClearDayOffSetting() async {
     print(
@@ -396,7 +381,6 @@ class LocationTaskHandler extends TaskHandler {
       'dayOffDate': null // Explicitly send null for the date
     });
   }
-
 
   @override
   void onNotificationButtonPressed(String id) {
@@ -441,7 +425,6 @@ class LocationTaskHandler extends TaskHandler {
         return;
       }
 
-
       // Check if location services are still enabled
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
@@ -471,8 +454,6 @@ class LocationTaskHandler extends TaskHandler {
           LocationConstants.rollingRoadAlertRadius);
       final bool isCloseToKingStreet = _isWithinRadius(
           position,
-
-
           LocationConstants.kingStreetStation,
           LocationConstants.kingStreetAlertRadius);
 
@@ -480,9 +461,10 @@ class LocationTaskHandler extends TaskHandler {
 
       // This is the existing check for Rolling Road (trains "331" || "333"), leave it as is:
       final bool isAfternoonTrain = _currentTrain == "331" ||
-          _currentTrain == "333" || _currentTrain == "329";
-      final bool isMorningTrain = _currentTrain == "326" ||
-          _currentTrain == "328";
+          _currentTrain == "333" ||
+          _currentTrain == "329";
+      final bool isMorningTrain =
+          _currentTrain == "326" || _currentTrain == "328";
 
       // Use the locally defined isCloseToRollingRoad if needed, or re-evaluate if not available in this scope
       // For clarity, we'll use the variable defined earlier in the method if it's still in scope
@@ -491,14 +473,16 @@ class LocationTaskHandler extends TaskHandler {
 
       if (isAfternoonTrain &&
           _trackingMode == LocationConstants.trackingModeAfternoon) {
-        final bool isCurrentlyWithin1MileRadiusRR = isCloseToRollingRoad; // Re-using the variable from line
+        final bool isCurrentlyWithin1MileRadiusRR =
+            isCloseToRollingRoad; // Re-using the variable from line
         final bool isCurrentlyWithin2MilesRR = _isWithinRadius(
             position,
             LocationConstants.rollingRoadStation,
             LocationConstants.distance2MilesMeters);
 
         // 2-mile beep logic for Rolling Road
-        if (isCurrentlyWithin2MilesRR && !isCurrentlyWithin1MileRadiusRR &&
+        if (isCurrentlyWithin2MilesRR &&
+            !isCurrentlyWithin1MileRadiusRR &&
             !_twoMileAlertIssuedForRollingRoad) {
           print(
               'LocationTaskHandler: Approaching 2 miles from Rolling Road. Requesting beep.');
@@ -509,8 +493,8 @@ class LocationTaskHandler extends TaskHandler {
           _twoMileAlertIssuedForRollingRoad = true;
         }
         // Reset 2-mile flag if we move out of 2-mile zone before 1-mile alert
-        else
-        if (!isCurrentlyWithin2MilesRR && _twoMileAlertIssuedForRollingRoad) {
+        else if (!isCurrentlyWithin2MilesRR &&
+            _twoMileAlertIssuedForRollingRoad) {
           _twoMileAlertIssuedForRollingRoad = false;
           print(
               'LocationTaskHandler: Moved out of 2-mile Rolling Road radius before 1-mile alert. Resetting 2-mile toast flag.');
@@ -518,19 +502,19 @@ class LocationTaskHandler extends TaskHandler {
 
         // 1-mile alert and repeat logic for Rolling Road
 
-
         if (isCurrentlyWithin1MileRadiusRR && !_rollingRoadAlertTriggered) {
           print(
               'LocationTaskHandler: Approaching 1 mile from Rolling Road. Triggering alert.');
           await _triggerAlert('Approaching station!');
           _rollingRoadAlertRepeated =
-          false; // Reset repeat flag for this new alert instance
+              false; // Reset repeat flag for this new alert instance
           _rollingRoadAlertTriggered = true; // Mark as triggered
           _trackingMode = "RollingRoadAlerted"; // Set alerted state
           _startRollingRoadRepeatTimer(); // Start the 30-second timer
 
           await _saveState();
-        } else if (!isCurrentlyWithin1MileRadiusRR && _rollingRoadAlertTriggered) {
+        } else if (!isCurrentlyWithin1MileRadiusRR &&
+            _rollingRoadAlertTriggered) {
           // Left the 1-mile alert zone for Rolling Road, potentially arrived.
           // Only trigger this if we actually had a 1-mile alert first
           print(
@@ -580,7 +564,7 @@ class LocationTaskHandler extends TaskHandler {
         if (isCloseToUnionStation && !_unionStationAlertTriggered) {
           await _triggerAlert('Approaching Station!');
           _hasAcknowledgedAlert =
-          true; // No acknowledgement needed for Union Station
+              true; // No acknowledgement needed for Union Station
           _unionStationAlertTriggered = true; // Mark as triggered
           _trackingMode = "UnionStationAlerted"; // Set alerted state
           await _saveState();
@@ -588,14 +572,10 @@ class LocationTaskHandler extends TaskHandler {
           _unionStationAlertTriggered = false; // Reset for next trip
           _updateTrackingModeBasedOnTime(); // Reset to time-based mode
         }
-
-
       }
-
 
       final batteryLevel = await _battery.batteryLevel;
 // ... (rest of the method)
-
 
       FlutterForegroundTask.sendDataToMain({
         'batteryLevel': batteryLevel,
@@ -627,7 +607,6 @@ class LocationTaskHandler extends TaskHandler {
     // Volume already set to max in onStart, just ensure it's still at max
     //VolumeController().setVolume(1.0);
 
-
     VolumeController().setVolume(1.0);
     await _flutterTts.speak(message);
 
@@ -653,28 +632,28 @@ class LocationTaskHandler extends TaskHandler {
   void _startRollingRoadRepeatTimer() {
     _cancelRollingRoadRepeatTimer(); // Cancel any existing timer
     // Check if it's an afternoon train, we triggered the alert, and it hasn't been repeated yet.
-    bool isAfternoonTrain = _currentTrain == "329" || _currentTrain == "331" ||
+    bool isAfternoonTrain = _currentTrain == "329" ||
+        _currentTrain == "331" ||
         _currentTrain == "333";
-    if (isAfternoonTrain && _rollingRoadAlertTriggered &&
-        !_rollingRoadAlertRepeated && !_hasAcknowledgedAlert) {
-
-
+    if (isAfternoonTrain &&
+        _rollingRoadAlertTriggered &&
+        !_rollingRoadAlertRepeated &&
+        !_hasAcknowledgedAlert) {
       print(
           'LocationTaskHandler: Starting 30-second repeat timer for Rolling Road alert.');
       _rollingRoadRepeatTimer = Timer(const Duration(seconds: 30), () async {
-        if (!_hasAcknowledgedAlert && _rollingRoadAlertTriggered &&
+        if (!_hasAcknowledgedAlert &&
+            _rollingRoadAlertTriggered &&
             !_rollingRoadAlertRepeated) {
           print(
               'LocationTaskHandler: Rolling Road alert not acknowledged in 30s. Repeating audio announcement only.');
           VolumeController().setVolume(1.0);
-          await _flutterTts.speak(
-              'Repeating: Approaching station!'); // Audio only
+          await _flutterTts
+              .speak('Repeating: Approaching station!'); // Audio only
           _rollingRoadAlertRepeated =
-          true; // Mark as repeated to prevent further audio repeats for this instance
+              true; // Mark as repeated to prevent further audio repeats for this instance
           // Note: _hasAcknowledgedAlert remains false from the initial unacknowledged alert.
           // The original UI alert is still pending.
-
-
         }
       });
     }
@@ -687,7 +666,6 @@ class LocationTaskHandler extends TaskHandler {
       _rollingRoadRepeatTimer = null;
     }
   }
-
 
   void _changeUpdateInterval(int newMillis) {
     if (!(_timer?.isActive ?? false) &&
@@ -710,11 +688,13 @@ class LocationTaskHandler extends TaskHandler {
   }
 
   void _updateTargetStation() {
-    if (_currentTrain == "326" ||
-        _currentTrain == "328") { // Morning trains to Union Station
+    if (_currentTrain == "326" || _currentTrain == "328") {
+      // Morning trains to Union Station
       _currentTargetStationCoordinates = LocationConstants.unionStation;
-    } else if (_currentTrain == "329" || _currentTrain == "331" ||
-        _currentTrain == "333") { // Evening trains to Rolling Road
+    } else if (_currentTrain == "329" ||
+        _currentTrain == "331" ||
+        _currentTrain == "333") {
+      // Evening trains to Rolling Road
       _currentTargetStationCoordinates = LocationConstants.rollingRoadStation;
     } else {
       _currentTargetStationCoordinates = null; // No specific target
@@ -727,7 +707,6 @@ class LocationTaskHandler extends TaskHandler {
         {'action': 'trainUpdated', 'currentTrain': train});
     _saveState();
   }
-
 
   void acknowledgeAlert() {
     _hasAcknowledgedAlert = true;
@@ -747,19 +726,16 @@ class LocationTaskHandler extends TaskHandler {
       return;
     }
 
-
     if (_dayOffDateIsoString != null && _dayOffDateIsoString!.isNotEmpty) {
-      final String currentDateIso = "${currentTime.year}-${currentTime.month
-          .toString().padLeft(2, '0')}-${currentTime.day.toString().padLeft(
-          2, '0')}";
+      final String currentDateIso =
+          "${currentTime.year}-${currentTime.month.toString().padLeft(2, '0')}-${currentTime.day.toString().padLeft(2, '0')}";
       if (_dayOffDateIsoString == currentDateIso && currentTime.hour < 20) {
         return; // It's a day off and before 8 PM
       }
     }
 
-    final String currentDateStr = "${currentTime.year}-${currentTime.month
-        .toString().padLeft(2, '0')}-${currentTime.day.toString().padLeft(
-        2, '0')}";
+    final String currentDateStr =
+        "${currentTime.year}-${currentTime.month.toString().padLeft(2, '0')}-${currentTime.day.toString().padLeft(2, '0')}";
 
     // Reset applied dates if the day has changed
     if (_morningDefaultAppliedDateBackground != null &&
@@ -776,17 +752,18 @@ class LocationTaskHandler extends TaskHandler {
     // Morning default: between 5:30 AM and noon
 
     // Morning default: between 5:30 AM and noon
-    bool isMorningWindow = (currentTime.hour == 5 &&
-        currentTime.minute >= 30) ||
-        (currentTime.hour > 5 && currentTime.hour < 12);
+    bool isMorningWindow =
+        (currentTime.hour == 5 && currentTime.minute >= 30) ||
+            (currentTime.hour > 5 && currentTime.hour < 12);
 
     if (isMorningWindow &&
         _morningDefaultAppliedDateBackground != currentDateStr) {
-      if (_currentTrain == "None" || _currentTrain == "331" ||
-          _currentTrain == "333" || _currentTrain == "329") {
+      if (_currentTrain == "None" ||
+          _currentTrain == "331" ||
+          _currentTrain == "333" ||
+          _currentTrain == "329") {
         print(
-            'LocationTaskHandler: Auto-switching to morning train 326 at ${currentTime
-                .hour}:${currentTime.minute.toString().padLeft(2, '0')}');
+            'LocationTaskHandler: Auto-switching to morning train 326 at ${currentTime.hour}:${currentTime.minute.toString().padLeft(2, '0')}');
         _currentTrain = "326";
         _trackingMode = LocationConstants.trackingModeMorning;
         _updateTargetStation();
@@ -810,11 +787,11 @@ class LocationTaskHandler extends TaskHandler {
     // Afternoon default: noon or later
     if (currentTime.hour >= 12 &&
         _afternoonDefaultAppliedDateBackground != currentDateStr) {
-      if (_currentTrain == "None" || _currentTrain == "326" ||
+      if (_currentTrain == "None" ||
+          _currentTrain == "326" ||
           _currentTrain == "328") {
         print(
-            'LocationTaskHandler: Auto-switching to afternoon train 331 at ${currentTime
-                .hour}:${currentTime.minute.toString().padLeft(2, '0')}');
+            'LocationTaskHandler: Auto-switching to afternoon train 331 at ${currentTime.hour}:${currentTime.minute.toString().padLeft(2, '0')}');
         _currentTrain = "331";
         _trackingMode = LocationConstants.trackingModeAfternoon;
         _updateTargetStation();
@@ -857,8 +834,8 @@ class LocationTaskHandler extends TaskHandler {
 
     // Check if it's a day off
     if (_dayOffDateIsoString != null && _dayOffDateIsoString!.isNotEmpty) {
-      final String currentDateIso = "${now.year}-${now.month.toString().padLeft(
-          2, '0')}-${now.day.toString().padLeft(2, '0')}";
+      final String currentDateIso =
+          "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
       if (_dayOffDateIsoString == currentDateIso && now.hour < 20) {
         _trackingMode = LocationConstants.trackingModeDayOff;
         return;
@@ -867,7 +844,7 @@ class LocationTaskHandler extends TaskHandler {
 
     // Determine mode based on time
     bool isMorningTime = (now.hour == LocationConstants.morningModeStartHour &&
-        now.minute >= LocationConstants.morningModeStartMinute) ||
+            now.minute >= LocationConstants.morningModeStartMinute) ||
         (now.hour > LocationConstants.morningModeStartHour &&
             now.hour < LocationConstants.morningModeEndHour);
 
@@ -921,11 +898,7 @@ class LocationTaskHandler extends TaskHandler {
   }
 }
 
-
 class LocationService {
-
-
-
   LocationService._privateConstructor();
   static final LocationService _instance =
       LocationService._privateConstructor();
