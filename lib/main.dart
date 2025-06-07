@@ -15,7 +15,7 @@ import 'package:flutter_foreground_task/models/notification_channel_importance.d
 import 'package:flutter_foreground_task/models/notification_priority.dart';
 
 // App version
-const String appVersion = '1.0.1';
+const String appVersion = '1.0.2';
 
 @pragma('vm:entry-point')
 void main() async {
@@ -74,8 +74,9 @@ class _LocationScreenState extends State<LocationScreen>
   static const String _trainEvening2 = "333";
   static const String _trainNone = "None";
 
-  final double _currentLatitude = 0.0;
-  final double _currentLongitude = 0.0;
+  final double _currentLatitude = 38.8075; // Near Rolling Road area for testing
+  final double _currentLongitude =
+      -77.2653; // Near Rolling Road area for testing
 
   String _locationStatus = "Initializing...";
   String _currentTrain = "None";
@@ -511,7 +512,7 @@ class _LocationScreenState extends State<LocationScreen>
     // Made async
     if (mounted) {
       // Ensure widget is still mounted before async operations
-      //await _checkAndApplyAutomaticTrainDefaults();
+      await _checkAndApplyAutomaticTrainDefaults();
     }
     // Update display tracking mode based on current time
     _updateDisplayTrackingModeFromTime();
