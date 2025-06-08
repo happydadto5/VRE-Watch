@@ -13,9 +13,10 @@ import 'widgets/location_status_widget.dart';
 import 'constants/location_constants.dart';
 import 'package:flutter_foreground_task/models/notification_channel_importance.dart';
 import 'package:flutter_foreground_task/models/notification_priority.dart';
+import 'utils/simulated_time.dart';
 
 // App version
-const String appVersion = '1.0.7';
+const String appVersion = '1.0.8';
 
 @pragma('vm:entry-point')
 void main() async {
@@ -125,6 +126,8 @@ class _LocationScreenState extends State<LocationScreen>
     if (_currentTrain == "None") {
       _checkAndApplyAutomaticTrainDefaults();
     }
+    // Always sync train state to background on app start
+    _sendTrainStateToBackground();
   }
 
   void _autoStartBackgroundService() async {
@@ -373,19 +376,7 @@ class _LocationScreenState extends State<LocationScreen>
   // Ensure _getCurrentTimeForLogic is defined at the class level
 
   DateTime _getCurrentTimeForLogic() {
-    if (simulatedStart != null && _realTimeAtSimulationStart != null) {
-      final Duration elapsedRealTime = DateTime.now().difference(
-        _realTimeAtSimulationStart!,
-      );
-      const double simulationSpeedFactor =
-          45.0; // Fixed 45x speed factor (3x faster than previous 15x)
-      final int acceleratedMilliseconds =
-          (elapsedRealTime.inMilliseconds * simulationSpeedFactor).round();
-      return simulatedStart!.add(
-        Duration(milliseconds: acceleratedMilliseconds),
-      );
-    }
-    return DateTime.now();
+    return SimulatedTime.getCurrentTime();
   }
 
   DateTime _calculateNextBusinessDay(DateTime fromDate) {
@@ -508,8 +499,17 @@ class _LocationScreenState extends State<LocationScreen>
     final String currentDateStr = DateFormat('yyyy-MM-dd').format(now);
     final SharedPreferences prefs = await SharedPreferences.getInstance();
 
+    print('DEBUG: _checkAndApplyAutomaticTrainDefaults called');
+    print('DEBUG: now = $now');
+    print('DEBUG: currentDateStr = $currentDateStr');
+    print('DEBUG: _currentTrain = $_currentTrain');
+    print('DEBUG: _morningDefaultAppliedDate = $_morningDefaultAppliedDate');
+    print(
+        'DEBUG: _afternoonDefaultAppliedDate = $_afternoonDefaultAppliedDate');
+
     // Don't apply defaults if we're in inactive mode (weekend or day off)
     if (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday) {
+      print('DEBUG: Weekend detected, skipping auto-selection.');
       if (_currentTrain != _trainNone) {
         await _switchToTrain(_trainNone, "Weekend mode - no train selected");
       }
@@ -518,41 +518,40 @@ class _LocationScreenState extends State<LocationScreen>
 
     // Reset applied dates if the day has changed
     if (_morningDefaultAppliedDate != currentDateStr) {
+      print('DEBUG: Resetting _morningDefaultAppliedDate for new day.');
       _morningDefaultAppliedDate = null;
       await prefs.remove(LocationConstants.prefMorningDefaultAppliedDate);
-      print(
-          'UI: Reset morning default applied date for new day: $currentDateStr');
     }
     if (_afternoonDefaultAppliedDate != currentDateStr) {
+      print('DEBUG: Resetting _afternoonDefaultAppliedDate for new day.');
       _afternoonDefaultAppliedDate = null;
       await prefs.remove(LocationConstants.prefAfternoonDefaultAppliedDate);
-      print(
-          'UI: Reset afternoon default applied date for new day: $currentDateStr');
     }
 
     // Morning default logic (5:30 AM to 8:00 AM)
     bool isMorningWindow =
         (now.hour == 5 && now.minute >= 30) || (now.hour > 5 && now.hour < 8);
-    print(
-        'UI: DEBUG - Time: ${now.hour}:${now.minute.toString().padLeft(2, '0')}, isMorningWindow: $isMorningWindow');
+    print('DEBUG: isMorningWindow = $isMorningWindow');
 
     if (isMorningWindow && _morningDefaultAppliedDate != currentDateStr) {
-      print('UI: Processing morning auto train switch check');
+      print('DEBUG: In morning window and not yet applied today.');
       if (_currentTrain == _trainNone) {
-        print('UI: Switching to morning train $_trainMorning1');
+        print('DEBUG: Switching to morning train $_trainMorning1');
         await _switchToTrain(_trainMorning1, "Auto-selected morning train 326");
         _morningDefaultAppliedDate = currentDateStr;
         await prefs.setString(
           LocationConstants.prefMorningDefaultAppliedDate,
           currentDateStr,
         );
+      } else {
+        print('DEBUG: _currentTrain is not None, skipping switch.');
       }
     }
     // Afternoon default logic (after 8:00 AM)
     else if (now.hour >= 8 && _afternoonDefaultAppliedDate != currentDateStr) {
-      print('UI: Processing afternoon auto train switch check');
+      print('DEBUG: In afternoon window and not yet applied today.');
       if (_currentTrain == _trainNone) {
-        print('UI: Switching to afternoon train $_trainEvening1');
+        print('DEBUG: Switching to afternoon train $_trainEvening1');
         await _switchToTrain(
             _trainEvening1, "Auto-selected afternoon train 331");
         _afternoonDefaultAppliedDate = currentDateStr;
@@ -560,6 +559,8 @@ class _LocationScreenState extends State<LocationScreen>
           LocationConstants.prefAfternoonDefaultAppliedDate,
           currentDateStr,
         );
+      } else {
+        print('DEBUG: _currentTrain is not None, skipping switch.');
       }
     }
   }
@@ -709,30 +710,70 @@ class _LocationScreenState extends State<LocationScreen>
     }
   }
 
-  void _testTimeToggle() async {
-    if (!mounted) return;
+  void _setSimulatedTime(DateTime newSimulatedTime) {
+    setState(() {
+      simulatedStart = newSimulatedTime;
+      _realTimeAtSimulationStart = DateTime.now();
+      SimulatedTime.simulatedStart = newSimulatedTime;
+      SimulatedTime.realTimeAtSimulationStart = _realTimeAtSimulationStart;
+      _morningDefaultAppliedDate = null;
+      _afternoonDefaultAppliedDate = null;
+      _currentTrain = _trainNone;
+    });
+    print('DEBUG: Simulated time set to $newSimulatedTime');
+    if (simulatedStart != null && _realTimeAtSimulationStart != null) {
+      FlutterForegroundTask.sendDataToTask({
+        'action': 'updateSimulatedTime',
+        'simulatedStart': simulatedStart!.toIso8601String(),
+        'realTimeAtSimulationStart':
+            _realTimeAtSimulationStart!.toIso8601String(),
+        'simulationSpeedFactor': SimulatedTime.simulationSpeedFactor,
+      });
+    }
+    _checkAndApplyAutomaticTrainDefaults();
+    _sendTrainStateToBackground();
+  }
 
+  void _testTimeMondayMorning() {
+    // Set simulated time to 5:28 AM Monday
+    final now = DateTime.now();
+    final int daysToMonday = (DateTime.monday - now.weekday) % 7;
+    final DateTime nextMonday = now.add(Duration(days: daysToMonday));
+    final DateTime mondayMorning = DateTime(
+      nextMonday.year,
+      nextMonday.month,
+      nextMonday.day,
+      5,
+      28,
+    );
+    _setSimulatedTime(mondayMorning);
+    // Reset applied dates and train selection for fresh testing
+    setState(() {
+      _morningDefaultAppliedDate = null;
+      _afternoonDefaultAppliedDate = null;
+      _currentTrain = _trainNone;
+    });
+    print('DEBUG: Test time set to Monday 5:28 AM, state reset.');
+    _checkAndApplyAutomaticTrainDefaults();
+  }
+
+  Future<void> _testTimeToggle() async {
     if (simulatedStart == null) {
       // 1. Pick Date
       final DateTime? pickedDate = await showDatePicker(
         context: context,
         initialDate: DateTime.now(),
-        firstDate: DateTime(2000), // Or a suitable past date
-        lastDate: DateTime(2101), // Or a suitable future date
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2101),
       );
-
-      if (pickedDate == null) return; // User cancelled date picker
-
-      // 2. Pick Time (Important: ensure context is still valid if you have complex navigation)
+      if (pickedDate == null) return;
+      // 2. Pick Time
       final TimeOfDay? pickedTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(DateTime.now()),
-        initialEntryMode: TimePickerEntryMode
-            .input, // Ensures 1-minute precision via text input
+        initialEntryMode: TimePickerEntryMode.input,
       );
-
-      if (pickedTime == null) return; // User cancelled time picker
-
+      if (pickedTime == null) return;
       // 3. Combine Date and Time
       final DateTime newSimulatedStartTime = DateTime(
         pickedDate.year,
@@ -741,75 +782,21 @@ class _LocationScreenState extends State<LocationScreen>
         pickedTime.hour,
         pickedTime.minute,
       );
-
-      setState(() {
-        simulatedStart = newSimulatedStartTime;
-        _realTimeAtSimulationStart =
-            DateTime.now(); // Store real time when simulation starts
-        _updateDisplayDateTime(); // Update display immediately
-      });
-      // Update toast message to include date and time
+      _setSimulatedTime(newSimulatedStartTime);
       _showToast(
-        "Test time set to: ${DateFormat('EEE, MMM d, HH:mm').format(newSimulatedStartTime)} (simulated)",
+        "Test time set to: " +
+            DateFormat('EEE, MMM d, HH:mm').format(newSimulatedStartTime) +
+            " (simulated)",
       );
-      _startOrRestartTrainDefaultsTimer();
     } else {
       setState(() {
         simulatedStart = null;
-        _realTimeAtSimulationStart = null; // Clear real time tracker
-        _updateDisplayDateTime();
+        _realTimeAtSimulationStart = null;
       });
+      print('DEBUG: Test mode exited, reverted to real time.');
+      _checkAndApplyAutomaticTrainDefaults();
       _showToast("Reverted to real time.");
-      _startOrRestartTrainDefaultsTimer();
     }
-  }
-
-  void _testTimeMondayMorning() async {
-    if (!mounted) return;
-
-    // Find the next Monday (or use current date if already Monday)
-    DateTime now = DateTime.now();
-    DateTime nextMonday = now;
-
-    // If it's not Monday, find the next Monday
-    if (now.weekday != DateTime.monday) {
-      int daysUntilMonday = DateTime.monday - now.weekday;
-      if (daysUntilMonday <= 0) {
-        daysUntilMonday += 7; // Next week's Monday
-      }
-      nextMonday = now.add(Duration(days: daysUntilMonday));
-    }
-
-    // Set to 5:28 AM on that Monday
-    final DateTime mondayMorningTime = DateTime(
-      nextMonday.year,
-      nextMonday.month,
-      nextMonday.day,
-      5, // 5 AM
-      28, // 28 minutes
-    );
-
-    // Reset applied dates and current train for fresh test
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove(LocationConstants.prefMorningDefaultAppliedDate);
-    await prefs.remove(LocationConstants.prefAfternoonDefaultAppliedDate);
-
-    setState(() {
-      simulatedStart = mondayMorningTime;
-      _realTimeAtSimulationStart =
-          DateTime.now(); // Store real time when simulation starts
-      _morningDefaultAppliedDate = null; // Reset in memory too
-      _afternoonDefaultAppliedDate = null; // Reset in memory too
-      _currentTrain = _trainNone; // Reset to None to trigger auto-selection
-      _updateDisplayDateTime(); // Update display immediately
-    });
-
-    locationService.currentTrain = _currentTrain;
-
-    _showToast(
-      "Test time set to: ${DateFormat('EEE, MMM d, HH:mm').format(mondayMorningTime)} (simulated)",
-    );
-    _startOrRestartTrainDefaultsTimer();
   }
 
   void _updateAll() {
@@ -850,13 +837,8 @@ class _LocationScreenState extends State<LocationScreen>
     _updateTargetStation();
     await _saveState();
     _showToast("Train set to: $_currentTrain");
-
-    // Notify background service of train change
-    FlutterForegroundTask.sendDataToTask({
-      'action': 'updateTrain',
-      'currentTrain': _currentTrain,
-      'reason': reason
-    });
+    // Always sync train state to background after switch
+    _sendTrainStateToBackground();
   }
 
   String _getDisplayTrackingMode(String trackingMode) {
@@ -999,6 +981,16 @@ class _LocationScreenState extends State<LocationScreen>
     }
   }
 
+  void _sendTrainStateToBackground() {
+    FlutterForegroundTask.sendDataToTask({
+      'action': 'updateTrain',
+      'currentTrain': _currentTrain,
+      'trackingMode': _trackingMode,
+    });
+    print(
+        'DEBUG: Sent train state to background: $_currentTrain, $_trackingMode');
+  }
+
   @override
   Widget build(BuildContext context) {
     // Variable to hold the display string for day off status
@@ -1122,6 +1114,11 @@ class _LocationScreenState extends State<LocationScreen>
                       ? 'TESTING: Stop GPS Service'
                       : 'TESTING: Restart GPS Service',
                 ),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: _checkAndApplyAutomaticTrainDefaults,
+                child: const Text('DEBUG: Trigger Auto Train Selection'),
               ),
             ],
           ),

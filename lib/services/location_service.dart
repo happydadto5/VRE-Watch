@@ -9,7 +9,9 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:volume_controller/volume_controller.dart';
 import '../helpers/location_permission_helper.dart';
+import '../utils/simulated_time.dart';
 
+import '../constants/location_constants.dart';
 import '../constants/location_constants.dart';
 
 @pragma('vm:entry-point')
@@ -39,8 +41,29 @@ class LocationTaskHandler extends TaskHandler {
   int _currentUpdateIntervalMillis = LocationConstants.mediumUpdateFrequency;
   String? _dayOffDateIsoString;
   DateTime _effectiveCurrentTime = DateTime.now();
+  DateTime? _lastSimulatedTimeChecked;
+  String? _lastReminderFired;
 
   final Battery _battery = Battery();
+
+  DateTime? _simulatedStart;
+  DateTime? _realTimeAtSimulationStart;
+  double _simulationSpeedFactor = 45.0;
+  bool _useSimulatedTime = false;
+
+  DateTime _getCurrentTimeForLogic() {
+    if (_useSimulatedTime &&
+        _simulatedStart != null &&
+        _realTimeAtSimulationStart != null) {
+      final Duration elapsedRealTime =
+          DateTime.now().difference(_realTimeAtSimulationStart!);
+      final int acceleratedMilliseconds =
+          (elapsedRealTime.inMilliseconds * _simulationSpeedFactor).round();
+      return _simulatedStart!
+          .add(Duration(milliseconds: acceleratedMilliseconds));
+    }
+    return DateTime.now();
+  }
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -107,15 +130,108 @@ class LocationTaskHandler extends TaskHandler {
   void _processLocation(Position position) {
     print(
         'BACKGROUND: *** PROCESSING LOCATION *** ${position.latitude}, ${position.longitude}');
+    print(
+        'BACKGROUND: *** _currentTrain = $_currentTrain, _trackingMode = $_trackingMode');
+    final now = _getCurrentTimeForLogic();
+    print('BACKGROUND: *** now = $now');
 
-    // Check if we need to issue a "Leave House" reminder
-    if (_currentTrain == "326" || _currentTrain == "328") {
-      final now = DateTime.now();
-      if (now.hour == 6 && now.minute == 5) {
-        print('BACKGROUND: *** TIME TO LEAVE HOUSE ***');
-        VolumeController().setVolume(1.0);
-        _flutterTts?.speak(LocationConstants.reminderMsgLeaveHouse);
-      }
+    // Get departure time for current train
+    String? departureTimeStr;
+    int? getReadyLead;
+    int? catchTrainLead;
+    int? turnOffAndCatchLead;
+    String? getReadyMsg;
+    String? catchTrainMsg;
+    String? turnOffAndCatchMsg;
+
+    switch (_currentTrain) {
+      case "326":
+        departureTimeStr = LocationConstants.departureTimeTrain326;
+        getReadyLead = LocationConstants.morningGetReadyLeadTimeMinutes;
+        catchTrainLead = LocationConstants.morningCatchTrainLeadTimeMinutes;
+        turnOffAndCatchLead =
+            LocationConstants.morningTurnOffAndCatchTrainLeadTimeMinutes;
+        getReadyMsg = LocationConstants.reminderMsgGetReady;
+        catchTrainMsg = LocationConstants.reminderMsgCatchTrain;
+        turnOffAndCatchMsg = LocationConstants.reminderMsgTurnOffAndCatchTrain;
+        break;
+      case "328":
+        departureTimeStr = LocationConstants.departureTimeTrain328;
+        getReadyLead = LocationConstants.morningGetReadyLeadTimeMinutes;
+        catchTrainLead = LocationConstants.morningCatchTrainLeadTimeMinutes;
+        turnOffAndCatchLead =
+            LocationConstants.morningTurnOffAndCatchTrainLeadTimeMinutes;
+        getReadyMsg = LocationConstants.reminderMsgGetReady;
+        catchTrainMsg = LocationConstants.reminderMsgCatchTrain;
+        turnOffAndCatchMsg = LocationConstants.reminderMsgTurnOffAndCatchTrain;
+        break;
+      case "329":
+        departureTimeStr = LocationConstants.departureTimeTrain329;
+        getReadyLead = LocationConstants.afternoonGetReadyLeadTimeMinutes;
+        catchTrainLead = LocationConstants.afternoonCatchTrainLeadTimeMinutes;
+        getReadyMsg = LocationConstants.reminderMsgGetReady;
+        catchTrainMsg = LocationConstants.reminderMsgCatchTrain;
+        break;
+      case "331":
+        departureTimeStr = LocationConstants.departureTimeTrain331;
+        getReadyLead = LocationConstants.afternoonGetReadyLeadTimeMinutes;
+        catchTrainLead = LocationConstants.afternoonCatchTrainLeadTimeMinutes;
+        getReadyMsg = LocationConstants.reminderMsgGetReady;
+        catchTrainMsg = LocationConstants.reminderMsgCatchTrain;
+        break;
+      case "333":
+        departureTimeStr = LocationConstants.departureTimeTrain333;
+        getReadyLead = LocationConstants.afternoonGetReadyLeadTimeMinutes;
+        catchTrainLead = LocationConstants.afternoonCatchTrainLeadTimeMinutes;
+        getReadyMsg = LocationConstants.reminderMsgGetReady;
+        catchTrainMsg = LocationConstants.reminderMsgCatchTrain;
+        break;
+      default:
+        print('BACKGROUND: No reminders for train $_currentTrain');
+        return;
+    }
+
+    if (departureTimeStr == null) return;
+    final depParts = departureTimeStr.split(":");
+    final depHour = int.parse(depParts[0]);
+    final depMinute = int.parse(depParts[1]);
+    final today = DateTime(now.year, now.month, now.day, depHour, depMinute);
+
+    // Calculate reminder times
+    DateTime? getReadyTime = getReadyLead != null
+        ? today.subtract(Duration(minutes: getReadyLead))
+        : null;
+    DateTime? catchTrainTime = catchTrainLead != null
+        ? today.subtract(Duration(minutes: catchTrainLead))
+        : null;
+    DateTime? turnOffAndCatchTime = turnOffAndCatchLead != null
+        ? today.subtract(Duration(minutes: turnOffAndCatchLead))
+        : null;
+
+    // Fire reminders if current time matches
+    if (getReadyTime != null &&
+        now.hour == getReadyTime.hour &&
+        now.minute == getReadyTime.minute) {
+      print(
+          'BACKGROUND: *** GET READY REMINDER for $_currentTrain at ${getReadyTime.hour}:${getReadyTime.minute.toString().padLeft(2, '0')} ***');
+      VolumeController().setVolume(1.0);
+      _flutterTts?.speak(getReadyMsg ?? "Get Ready");
+    }
+    if (catchTrainTime != null &&
+        now.hour == catchTrainTime.hour &&
+        now.minute == catchTrainTime.minute) {
+      print(
+          'BACKGROUND: *** CATCH TRAIN REMINDER for $_currentTrain at ${catchTrainTime.hour}:${catchTrainTime.minute.toString().padLeft(2, '0')} ***');
+      VolumeController().setVolume(1.0);
+      _flutterTts?.speak(catchTrainMsg ?? "Catch Train");
+    }
+    if (turnOffAndCatchTime != null &&
+        now.hour == turnOffAndCatchTime.hour &&
+        now.minute == turnOffAndCatchTime.minute) {
+      print(
+          'BACKGROUND: *** TURN OFF AND CATCH TRAIN REMINDER for $_currentTrain at ${turnOffAndCatchTime.hour}:${turnOffAndCatchTime.minute.toString().padLeft(2, '0')} ***');
+      VolumeController().setVolume(1.0);
+      _flutterTts?.speak(turnOffAndCatchMsg ?? "Turn Off and Catch Train");
     }
   }
 
@@ -153,10 +269,119 @@ class LocationTaskHandler extends TaskHandler {
     // Handle periodic events
   }
 
+  void _checkRemindersForMissedTimes() {
+    final now = _getCurrentTimeForLogic();
+    final last = _lastSimulatedTimeChecked ?? now;
+    _lastSimulatedTimeChecked = now;
+
+    // Get departure time for current train
+    String? departureTimeStr;
+    int? getReadyLead;
+    int? catchTrainLead;
+    int? turnOffAndCatchLead;
+    String? getReadyMsg;
+    String? catchTrainMsg;
+    String? turnOffAndCatchMsg;
+
+    switch (_currentTrain) {
+      case "326":
+        departureTimeStr = LocationConstants.departureTimeTrain326;
+        getReadyLead = LocationConstants.morningGetReadyLeadTimeMinutes;
+        catchTrainLead = LocationConstants.morningCatchTrainLeadTimeMinutes;
+        turnOffAndCatchLead =
+            LocationConstants.morningTurnOffAndCatchTrainLeadTimeMinutes;
+        getReadyMsg = LocationConstants.reminderMsgGetReady;
+        catchTrainMsg = LocationConstants.reminderMsgCatchTrain;
+        turnOffAndCatchMsg = LocationConstants.reminderMsgTurnOffAndCatchTrain;
+        break;
+      case "328":
+        departureTimeStr = LocationConstants.departureTimeTrain328;
+        getReadyLead = LocationConstants.morningGetReadyLeadTimeMinutes;
+        catchTrainLead = LocationConstants.morningCatchTrainLeadTimeMinutes;
+        turnOffAndCatchLead =
+            LocationConstants.morningTurnOffAndCatchTrainLeadTimeMinutes;
+        getReadyMsg = LocationConstants.reminderMsgGetReady;
+        catchTrainMsg = LocationConstants.reminderMsgCatchTrain;
+        turnOffAndCatchMsg = LocationConstants.reminderMsgTurnOffAndCatchTrain;
+        break;
+      case "329":
+        departureTimeStr = LocationConstants.departureTimeTrain329;
+        getReadyLead = LocationConstants.afternoonGetReadyLeadTimeMinutes;
+        catchTrainLead = LocationConstants.afternoonCatchTrainLeadTimeMinutes;
+        getReadyMsg = LocationConstants.reminderMsgGetReady;
+        catchTrainMsg = LocationConstants.reminderMsgCatchTrain;
+        break;
+      case "331":
+        departureTimeStr = LocationConstants.departureTimeTrain331;
+        getReadyLead = LocationConstants.afternoonGetReadyLeadTimeMinutes;
+        catchTrainLead = LocationConstants.afternoonCatchTrainLeadTimeMinutes;
+        getReadyMsg = LocationConstants.reminderMsgGetReady;
+        catchTrainMsg = LocationConstants.reminderMsgCatchTrain;
+        break;
+      case "333":
+        departureTimeStr = LocationConstants.departureTimeTrain333;
+        getReadyLead = LocationConstants.afternoonGetReadyLeadTimeMinutes;
+        catchTrainLead = LocationConstants.afternoonCatchTrainLeadTimeMinutes;
+        getReadyMsg = LocationConstants.reminderMsgGetReady;
+        catchTrainMsg = LocationConstants.reminderMsgCatchTrain;
+        break;
+      default:
+        print('BACKGROUND: No reminders for train $_currentTrain');
+        return;
+    }
+
+    if (departureTimeStr == null) return;
+    final depParts = departureTimeStr.split(":");
+    final depHour = int.parse(depParts[0]);
+    final depMinute = int.parse(depParts[1]);
+    final today = DateTime(now.year, now.month, now.day, depHour, depMinute);
+
+    // Calculate reminder times
+    DateTime? getReadyTime = getReadyLead != null
+        ? today.subtract(Duration(minutes: getReadyLead))
+        : null;
+    DateTime? catchTrainTime = catchTrainLead != null
+        ? today.subtract(Duration(minutes: catchTrainLead))
+        : null;
+    DateTime? turnOffAndCatchTime = turnOffAndCatchLead != null
+        ? today.subtract(Duration(minutes: turnOffAndCatchLead))
+        : null;
+
+    // Check for missed reminders between last and now
+    void checkAndFire(DateTime? reminderTime, String msg, String logMsg) {
+      if (reminderTime == null) return;
+      if (!reminderTime.isAfter(last) && !reminderTime.isAtSameMomentAs(last))
+        return;
+      if (reminderTime.isAfter(now)) return;
+      if (_lastReminderFired == logMsg) return; // Prevent duplicate firing
+      print(
+          'BACKGROUND: *** $logMsg for $_currentTrain at ${reminderTime.hour}:${reminderTime.minute.toString().padLeft(2, '0')} ***');
+      VolumeController().setVolume(1.0);
+      _flutterTts?.speak(msg);
+      _lastReminderFired = logMsg;
+      // Optionally, send status to foreground
+      FlutterForegroundTask.sendDataToMain({
+        'lastReminderFired': logMsg,
+        'reminderTime': reminderTime.toIso8601String(),
+        'train': _currentTrain,
+      });
+    }
+
+    checkAndFire(
+        getReadyTime, getReadyMsg ?? "Get Ready", "GET READY REMINDER");
+    checkAndFire(
+        catchTrainTime, catchTrainMsg ?? "Catch Train", "CATCH TRAIN REMINDER");
+    checkAndFire(
+        turnOffAndCatchTime,
+        turnOffAndCatchMsg ?? "Turn Off and Catch Train",
+        "TURN OFF AND CATCH TRAIN REMINDER");
+  }
+
   @override
   void onRepeatEvent(DateTime timestamp) {
     // Handle repeat events
     print('BACKGROUND: *** REPEAT EVENT *** $timestamp');
+    _checkRemindersForMissedTimes();
   }
 
   @override
@@ -164,6 +389,37 @@ class LocationTaskHandler extends TaskHandler {
     _locationSubscription?.cancel();
     await _flutterTts?.stop();
     VolumeController().setVolume(_originalVolume);
+  }
+
+  @override
+  void onReceiveData(Object data) {
+    if (data is Map<String, dynamic>) {
+      if (data['action'] == 'updateTrain') {
+        final String? newTrain = data['currentTrain'];
+        final String? newTrackingMode = data['trackingMode'];
+        if (newTrain != null) {
+          _currentTrain = newTrain;
+          print(
+              'BACKGROUND: Received train update from main app: $_currentTrain');
+          _updateTargetStation();
+        }
+        if (newTrackingMode != null) {
+          _trackingMode = newTrackingMode;
+          print(
+              'BACKGROUND: Received tracking mode update from main app: $_trackingMode');
+        }
+      } else if (data['action'] == 'updateSimulatedTime') {
+        _simulatedStart = DateTime.tryParse(data['simulatedStart'] ?? '');
+        _realTimeAtSimulationStart =
+            DateTime.tryParse(data['realTimeAtSimulationStart'] ?? '');
+        _simulationSpeedFactor =
+            (data['simulationSpeedFactor'] as num?)?.toDouble() ?? 45.0;
+        _useSimulatedTime =
+            _simulatedStart != null && _realTimeAtSimulationStart != null;
+        print(
+            'BACKGROUND: Received simulated time update: _simulatedStart=$_simulatedStart, _realTimeAtSimulationStart=$_realTimeAtSimulationStart, _simulationSpeedFactor=$_simulationSpeedFactor');
+      }
+    }
   }
 }
 

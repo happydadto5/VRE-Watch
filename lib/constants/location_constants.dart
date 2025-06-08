@@ -173,4 +173,10 @@ class LocationConstants {
     'latitude': 38.8075,
     'longitude': -77.2653
   };
+
+  static const Map<String, String> morningLeaveHouseTimes = {
+    "326": "06:05",
+    "328": "06:25",
+    // Add more trains and times as needed
+  };
 }
