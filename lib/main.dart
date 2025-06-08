@@ -16,7 +16,7 @@ import 'package:flutter_foreground_task/models/notification_priority.dart';
 import 'utils/simulated_time.dart';
 
 // App version
-const String appVersion = '1.0.8';
+const String appVersion = '1.0.9';
 
 @pragma('vm:entry-point')
 void main() async {
@@ -67,7 +67,7 @@ class _LocationScreenState extends State<LocationScreen>
     with WidgetsBindingObserver {
   LocationService locationService = LocationService.instance;
 
-  // Train constants
+// Train constants
   static const String _trainMorning1 = "326";
   static const String _trainMorning2 = "328";
   static const String _trainEvening3 = "329";
@@ -165,7 +165,7 @@ class _LocationScreenState extends State<LocationScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    VolumeController().removeListener();
+    VolumeController.instance.removeListener();
     flutterTts.stop();
     locationService.dispose();
     _dateTimeTimer?.cancel();
@@ -175,9 +175,9 @@ class _LocationScreenState extends State<LocationScreen>
   }
 
   Future<void> _initVolumeController() async {
-    _currentVolume = await VolumeController().getVolume();
-    VolumeController().setVolume(0.7);
-    VolumeController().listener((volume) {
+    _currentVolume = await VolumeController.instance.getVolume();
+    VolumeController.instance.setVolume(0.7);
+    VolumeController.instance.addListener((volume) {
       if (mounted) {
         setState(() {
           _currentVolume = volume;
@@ -194,7 +194,7 @@ class _LocationScreenState extends State<LocationScreen>
 
   Future<void> _speak(String text) async {
     if (text.isNotEmpty) {
-      VolumeController().setVolume(1.0);
+      VolumeController.instance.setVolume(1.0);
       await flutterTts.speak(text);
     }
   }
@@ -267,7 +267,7 @@ class _LocationScreenState extends State<LocationScreen>
   Future<void> _checkAndRequestPermissions() async {
     bool hasPermission =
         await LocationPermissionHelper.requestLocationPermissions(context);
-    // Also request overlay permission for better alerts
+// Also request overlay permission for better alerts
     await LocationPermissionHelper.requestOverlayPermission(context);
     if (mounted) {
       setState(() {
@@ -366,7 +366,7 @@ class _LocationScreenState extends State<LocationScreen>
       _showToast("Day off cleared.");
     }
 
-    // Notify the background service
+// Notify the background service
     // FlutterForegroundTask.sendDataToTask({
     //   'action': 'updateDayOffDate',
     //   'dayOffDate': isoDateString, // This will be null if newDayOffDate is null
@@ -571,7 +571,7 @@ class _LocationScreenState extends State<LocationScreen>
       // Ensure widget is still mounted before async operations
       await _checkAndApplyAutomaticTrainDefaults();
     }
-    // Update display tracking mode based on current time
+// Update display tracking mode based on current time
     _updateDisplayTrackingModeFromTime();
     // Proceed with updating the display string only if still mounted after the await
     if (!mounted) return;
@@ -719,6 +719,9 @@ class _LocationScreenState extends State<LocationScreen>
       _morningDefaultAppliedDate = null;
       _afternoonDefaultAppliedDate = null;
       _currentTrain = _trainNone;
+      // Reset location-based reminder flags in background
+      FlutterForegroundTask.sendDataToTask(
+          {'action': 'resetLocationReminders'});
     });
     print('DEBUG: Simulated time set to $newSimulatedTime');
     if (simulatedStart != null && _realTimeAtSimulationStart != null) {

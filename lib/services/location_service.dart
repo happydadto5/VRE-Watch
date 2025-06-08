@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'dart:isolate';
 
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:battery_plus/battery_plus.dart';
+
 import 'package:volume_controller/volume_controller.dart';
 import '../helpers/location_permission_helper.dart';
-import '../utils/simulated_time.dart';
 
-import '../constants/location_constants.dart';
 import '../constants/location_constants.dart';
 
 @pragma('vm:entry-point')
@@ -44,12 +41,13 @@ class LocationTaskHandler extends TaskHandler {
   DateTime? _lastSimulatedTimeChecked;
   String? _lastReminderFired;
 
-  final Battery _battery = Battery();
-
   DateTime? _simulatedStart;
   DateTime? _realTimeAtSimulationStart;
   double _simulationSpeedFactor = 45.0;
   bool _useSimulatedTime = false;
+
+  bool _afternoonPrepReminderFired = false;
+  bool _afternoonArrivedReminderFired = false;
 
   DateTime _getCurrentTimeForLogic() {
     if (_useSimulatedTime &&
@@ -83,9 +81,9 @@ class LocationTaskHandler extends TaskHandler {
     await _flutterTts?.setVolume(1.0);
 
     // Store original volume to restore later if needed
-    _originalVolume = await VolumeController().getVolume();
+    _originalVolume = await VolumeController.instance.getVolume();
     // Set volume to max for all announcements
-    VolumeController().setVolume(1.0);
+    VolumeController.instance.setVolume(1.0);
 
     _lastCheckedDateForReminders = DateTime.now();
     await _initFromPrefs();
@@ -134,6 +132,38 @@ class LocationTaskHandler extends TaskHandler {
         'BACKGROUND: *** _currentTrain = $_currentTrain, _trackingMode = $_trackingMode');
     final now = _getCurrentTimeForLogic();
     print('BACKGROUND: *** now = $now');
+
+    // Only do afternoon reminders for afternoon trains
+    if (_currentTrain == "329" ||
+        _currentTrain == "331" ||
+        _currentTrain == "333") {
+      // Calculate distance to Rolling Road
+      final target = LocationConstants.rollingRoadCoordinates;
+      final distanceMeters = Geolocator.distanceBetween(
+        position.latitude,
+        position.longitude,
+        target['latitude']!,
+        target['longitude']!,
+      );
+      final distanceMiles = distanceMeters * LocationConstants.metersToMiles;
+      final prepThreshold = 1.0; // miles (example, set to your prep threshold)
+      final arrivedThreshold =
+          0.1; // miles (example, set to your arrived threshold)
+
+      // Fire prep reminder if within prep threshold and not yet fired
+      if (!_afternoonPrepReminderFired && distanceMiles <= prepThreshold) {
+        _afternoonPrepReminderFired = true;
+        VolumeController.instance.setVolume(1.0);
+        _flutterTts?.speak("Prep: Approaching Rolling Road");
+      }
+      // Fire arrived reminder if within arrived threshold and not yet fired
+      if (!_afternoonArrivedReminderFired &&
+          distanceMiles <= arrivedThreshold) {
+        _afternoonArrivedReminderFired = true;
+        VolumeController.instance.setVolume(1.0);
+        _flutterTts?.speak("Arrived: Get off the train at Rolling Road");
+      }
+    }
 
     // Get departure time for current train
     String? departureTimeStr;
@@ -214,7 +244,7 @@ class LocationTaskHandler extends TaskHandler {
         now.minute == getReadyTime.minute) {
       print(
           'BACKGROUND: *** GET READY REMINDER for $_currentTrain at ${getReadyTime.hour}:${getReadyTime.minute.toString().padLeft(2, '0')} ***');
-      VolumeController().setVolume(1.0);
+      VolumeController.instance.setVolume(1.0);
       _flutterTts?.speak(getReadyMsg ?? "Get Ready");
     }
     if (catchTrainTime != null &&
@@ -222,7 +252,7 @@ class LocationTaskHandler extends TaskHandler {
         now.minute == catchTrainTime.minute) {
       print(
           'BACKGROUND: *** CATCH TRAIN REMINDER for $_currentTrain at ${catchTrainTime.hour}:${catchTrainTime.minute.toString().padLeft(2, '0')} ***');
-      VolumeController().setVolume(1.0);
+      VolumeController.instance.setVolume(1.0);
       _flutterTts?.speak(catchTrainMsg ?? "Catch Train");
     }
     if (turnOffAndCatchTime != null &&
@@ -230,7 +260,7 @@ class LocationTaskHandler extends TaskHandler {
         now.minute == turnOffAndCatchTime.minute) {
       print(
           'BACKGROUND: *** TURN OFF AND CATCH TRAIN REMINDER for $_currentTrain at ${turnOffAndCatchTime.hour}:${turnOffAndCatchTime.minute.toString().padLeft(2, '0')} ***');
-      VolumeController().setVolume(1.0);
+      VolumeController.instance.setVolume(1.0);
       _flutterTts?.speak(turnOffAndCatchMsg ?? "Turn Off and Catch Train");
     }
   }
@@ -356,7 +386,7 @@ class LocationTaskHandler extends TaskHandler {
       if (_lastReminderFired == logMsg) return; // Prevent duplicate firing
       print(
           'BACKGROUND: *** $logMsg for $_currentTrain at ${reminderTime.hour}:${reminderTime.minute.toString().padLeft(2, '0')} ***');
-      VolumeController().setVolume(1.0);
+      VolumeController.instance.setVolume(1.0);
       _flutterTts?.speak(msg);
       _lastReminderFired = logMsg;
       // Optionally, send status to foreground
@@ -388,7 +418,7 @@ class LocationTaskHandler extends TaskHandler {
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     _locationSubscription?.cancel();
     await _flutterTts?.stop();
-    VolumeController().setVolume(_originalVolume);
+    VolumeController.instance.setVolume(_originalVolume);
   }
 
   @override
@@ -418,6 +448,10 @@ class LocationTaskHandler extends TaskHandler {
             _simulatedStart != null && _realTimeAtSimulationStart != null;
         print(
             'BACKGROUND: Received simulated time update: _simulatedStart=$_simulatedStart, _realTimeAtSimulationStart=$_realTimeAtSimulationStart, _simulationSpeedFactor=$_simulationSpeedFactor');
+      } else if (data['action'] == 'resetLocationReminders') {
+        _afternoonPrepReminderFired = false;
+        _afternoonArrivedReminderFired = false;
+        print('BACKGROUND: Location-based reminder flags reset.');
       }
     }
   }
