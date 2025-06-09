@@ -49,6 +49,8 @@ class LocationTaskHandler extends TaskHandler {
   bool _afternoonPrepReminderFired = false;
   bool _afternoonArrivedReminderFired = false;
 
+  Position? _lastPosition;
+
   DateTime _getCurrentTimeForLogic() {
     if (_useSimulatedTime &&
         _simulatedStart != null &&
@@ -127,7 +129,7 @@ class LocationTaskHandler extends TaskHandler {
 
   void _processLocation(Position position) {
     print(
-        'BACKGROUND: *** PROCESSING LOCATION *** ${position.latitude}, ${position.longitude}');
+        'BACKGROUND: *** PROCESSING LOCATION *** [32m${position.latitude}, ${position.longitude}[0m');
     print(
         'BACKGROUND: *** _currentTrain = $_currentTrain, _trackingMode = $_trackingMode');
     final now = _getCurrentTimeForLogic();
@@ -150,19 +152,40 @@ class LocationTaskHandler extends TaskHandler {
       final arrivedThreshold =
           0.1; // miles (example, set to your arrived threshold)
 
-      // Fire prep reminder if within prep threshold and not yet fired
-      if (!_afternoonPrepReminderFired && distanceMiles <= prepThreshold) {
+      double? lastDistanceMiles;
+      if (_lastPosition != null) {
+        final lastDistanceMeters = Geolocator.distanceBetween(
+          _lastPosition!.latitude,
+          _lastPosition!.longitude,
+          target['latitude']!,
+          target['longitude']!,
+        );
+        lastDistanceMiles =
+            lastDistanceMeters * LocationConstants.metersToMiles;
+      }
+
+      // Fire prep reminder if threshold crossed or currently within and not yet fired
+      if (!_afternoonPrepReminderFired &&
+          ((lastDistanceMiles != null &&
+                  lastDistanceMiles > prepThreshold &&
+                  distanceMiles <= prepThreshold) ||
+              (lastDistanceMiles == null && distanceMiles <= prepThreshold))) {
         _afternoonPrepReminderFired = true;
         VolumeController.instance.setVolume(1.0);
         _flutterTts?.speak("Prep: Approaching Rolling Road");
       }
-      // Fire arrived reminder if within arrived threshold and not yet fired
+      // Fire arrived reminder if threshold crossed or currently within and not yet fired
       if (!_afternoonArrivedReminderFired &&
-          distanceMiles <= arrivedThreshold) {
+          ((lastDistanceMiles != null &&
+                  lastDistanceMiles > arrivedThreshold &&
+                  distanceMiles <= arrivedThreshold) ||
+              (lastDistanceMiles == null &&
+                  distanceMiles <= arrivedThreshold))) {
         _afternoonArrivedReminderFired = true;
         VolumeController.instance.setVolume(1.0);
         _flutterTts?.speak("Arrived: Get off the train at Rolling Road");
       }
+      _lastPosition = position;
     }
 
     // Get departure time for current train

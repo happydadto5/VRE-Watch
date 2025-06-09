@@ -16,7 +16,7 @@ import 'package:flutter_foreground_task/models/notification_priority.dart';
 import 'utils/simulated_time.dart';
 
 // App version
-const String appVersion = '1.2.6';
+const String appVersion = '1.2.8';
 
 @pragma('vm:entry-point')
 void main() async {
@@ -770,6 +770,53 @@ class _LocationScreenState extends State<LocationScreen>
 
   Future<void> _testTimeToggle() async {
     if (simulatedStart == null) {
+      double tempSpeed = SimulatedTime.simulationSpeedFactor;
+      final result = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (context) {
+          double sliderValue = tempSpeed;
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
+                title: const Text('Set Test Time & Speed'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Select simulation speed factor:'),
+                    Slider(
+                      min: 1,
+                      max: 120,
+                      divisions: 119,
+                      value: sliderValue,
+                      label: sliderValue.toStringAsFixed(1),
+                      onChanged: (value) {
+                        setState(() {
+                          sliderValue = value;
+                        });
+                      },
+                    ),
+                    Text('Current: ${sliderValue.toStringAsFixed(1)}x'),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(null),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop({
+                      'speed': sliderValue,
+                    }),
+                    child: const Text('OK'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+      if (result == null) return;
+      SimulatedTime.simulationSpeedFactor = result['speed'] as double;
       // 1. Pick Date
       final DateTime? pickedDate = await showDatePicker(
         context: context,
@@ -797,7 +844,7 @@ class _LocationScreenState extends State<LocationScreen>
       _showToast(
         "Test time set to: " +
             DateFormat('EEE, MMM d, HH:mm').format(newSimulatedStartTime) +
-            " (simulated)",
+            " (simulated) at ${SimulatedTime.simulationSpeedFactor.toStringAsFixed(1)}x",
       );
     } else {
       setState(() {
@@ -1155,7 +1202,7 @@ class _LocationScreenState extends State<LocationScreen>
               // --- Core Action Buttons ---
               ElevatedButton(
                 onPressed: _toggleTrain,
-                child: const Text('Switch Train'),
+                child: const Icon(Icons.train),
               ),
               const SizedBox(height: 10),
               ElevatedButton(
@@ -1205,13 +1252,6 @@ class _LocationScreenState extends State<LocationScreen>
               const SizedBox(height: 10),
               const Divider(), // Separator before the testing/service controls
               // --- Testing & Service Controls ---
-              Text(
-                // For the separated "Status Message"
-                'Status Message: $_locationStatus',
-                style: const TextStyle(fontSize: 16),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
               Text(
                 // For the separated "Service Status"
                 'Service Status: ${_isServiceRunning ? 'Running' : 'Stopped'}',
@@ -1272,13 +1312,16 @@ class _LocationScreenState extends State<LocationScreen>
   Widget _buildTopInfoDisplay() {
     String dayOffStatusText = _dayOffDateTime == null
         ? 'Day Off: None set'
-        : 'Day Off Set For: ${DateFormat('EEE, MMM d').format(_dayOffDateTime!)}';
+        : 'Day Off Set For: [32m${DateFormat('EEE, MMM d').format(_dayOffDateTime!)}[0m';
+
+    String informativeDistance =
+        _locationStatus; // Already formatted as '0.2 miles to Union Station'
 
     return TopInfoDisplayWidget(
       displayDateTimeString: _displayDateTimeString,
       currentTrain: _getFormattedTrainDisplayString(),
       displayTrackingMode: _displayTrackingMode,
-      locationStatus: _locationStatus,
+      locationStatus: informativeDistance, // Pass the informative string
       currentLatitude: _currentLatitude,
       currentLongitude: _currentLongitude,
       dayOffStatusText: dayOffStatusText,
@@ -1309,39 +1352,6 @@ class TopInfoDisplayWidget extends StatelessWidget {
     required this.hasRealGpsData,
   });
 
-  String? _getDistanceToStation() {
-    // Only show distance in morning or afternoon mode
-    if (displayTrackingMode != LocationConstants.trackingModeMorning &&
-        displayTrackingMode != LocationConstants.trackingModeAfternoon) {
-      return null;
-    }
-
-    // Check if we have real GPS data
-    if (!hasRealGpsData) {
-      return "No GPS location";
-    }
-
-    // Determine which station to use based on tracking mode
-    Map<String, double> targetStation;
-    if (displayTrackingMode == LocationConstants.trackingModeMorning) {
-      targetStation = LocationConstants.unionStationCoordinates;
-    } else {
-      targetStation = LocationConstants.rollingRoadCoordinates;
-    }
-
-    // Calculate distance in meters
-    double distanceInMeters = Geolocator.distanceBetween(
-      currentLatitude,
-      currentLongitude,
-      targetStation['latitude']!,
-      targetStation['longitude']!,
-    );
-
-    // Convert to miles and format to 1 decimal place
-    double distanceInMiles = distanceInMeters * LocationConstants.metersToMiles;
-    return '${distanceInMiles.toStringAsFixed(1)} miles';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1371,13 +1381,6 @@ class TopInfoDisplayWidget extends StatelessWidget {
             'Mode: $displayTrackingMode',
             style: const TextStyle(color: Colors.white, fontSize: 14),
           ),
-          if (_getDistanceToStation() != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Distance: ${_getDistanceToStation()}',
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-            ),
-          ],
           const SizedBox(height: 4),
           Text(
             dayOffStatusText,
