@@ -1,5 +1,17 @@
 # PowerShell script to clean, build, install, and launch the Flutter debug APK on an emulator
 
+$apkPath = "android/app/build/outputs/flutter-apk/app-debug.apk"
+$apkFallback = "android/app/build/outputs/apk/debug/app-debug.apk"
+
+# Get the last write time before build
+$preBuildTime = $null
+if (Test-Path $apkPath) {
+    $preBuildTime = (Get-Item $apkPath).LastWriteTimeUtc
+    Write-Host "Pre-build APK timestamp: $preBuildTime"
+} else {
+    Write-Host "No existing APK found before build"
+}
+
 flutter clean
 if ($LASTEXITCODE -ne 0) { Write-Host "flutter clean failed!"; exit 1 }
 
@@ -7,16 +19,29 @@ flutter pub get
 if ($LASTEXITCODE -ne 0) { Write-Host "flutter pub get failed!"; exit 1 }
 
 flutter build apk --debug
-if ($LASTEXITCODE -ne 0) { Write-Host "APK build failed!"; exit 1 }
+# Don't exit on build failure - we'll check the APK timestamp instead
 
-# Find the debug APK (prefer flutter-apk, fallback to apk/debug)
-$apk1 = "android/app/build/outputs/flutter-apk/app-debug.apk"
-$apk2 = "android/app/build/outputs/apk/debug/app-debug.apk"
-
-if (Test-Path $apk1) {
-    $apk = $apk1
-} elseif (Test-Path $apk2) {
-    $apk = $apk2
+# Check if the APK exists and was updated
+$apk = $null
+if (Test-Path $apkPath) {
+    $postBuildTime = (Get-Item $apkPath).LastWriteTimeUtc
+    Write-Host "Post-build APK timestamp: $postBuildTime"
+    
+    if ($preBuildTime -eq $null) {
+        Write-Host "New APK created. Proceeding."
+        $apk = $apkPath
+    } elseif ($postBuildTime -gt $preBuildTime) {
+        Write-Host "APK updated. Proceeding."
+        $apk = $apkPath
+    } else {
+        Write-Host "ERROR: APK timestamp did not change after build. This indicates the build did not complete successfully."
+        Write-Host "Pre-build time: $preBuildTime"
+        Write-Host "Post-build time: $postBuildTime"
+        exit 1
+    }
+} elseif (Test-Path $apkFallback) {
+    Write-Host "Using fallback APK path: $apkFallback"
+    $apk = $apkFallback
 } else {
     Write-Host "No debug APK found!"; exit 1
 }

@@ -16,7 +16,7 @@ import 'package:flutter_foreground_task/models/notification_priority.dart';
 import 'utils/simulated_time.dart';
 
 // App version
-const String appVersion = '1.2.0';
+const String appVersion = '1.2.6';
 
 @pragma('vm:entry-point')
 void main() async {
@@ -101,6 +101,13 @@ class _LocationScreenState extends State<LocationScreen>
 
   Map<String, double>? _currentTargetStationCoordinates;
 
+  // --- UTC Handling ---
+  DateTime _toUtc(DateTime dt) => dt.toUtc();
+  DateTime _fromUtc(String iso) => DateTime.parse(iso).toLocal();
+
+  // --- Missed Alerts Queue ---
+  final List<String> _missedAlertsQueue = [];
+
   @override
   void initState() {
     super.initState();
@@ -119,8 +126,9 @@ class _LocationScreenState extends State<LocationScreen>
     });
     _startOrRestartTrainDefaultsTimer();
 
-    // AUTO-START background service immediately
-    _autoStartBackgroundService();
+    Future.delayed(const Duration(seconds: 2), () {
+      _autoStartBackgroundService();
+    });
 
     // Auto-select default train on app launch if none selected
     if (_currentTrain == "None") {
@@ -992,6 +1000,137 @@ class _LocationScreenState extends State<LocationScreen>
     });
     print(
         'DEBUG: Sent train state to background: $_currentTrain, $_trackingMode');
+  }
+
+  Future<void> _resetSimulationState() async {
+    // Reset all reminder flags in the background service
+    locationService.acknowledgeAlert();
+    // Optionally, clear any local state as well
+    setState(() {
+      // Reset any local flags or state variables here if needed
+      _currentTrain = _trainNone;
+      _trackingMode = 'Waiting';
+      _displayTrackingMode = 'Initializing...';
+      _locationStatus = 'Initializing...';
+      _hasRealGpsData = false;
+      _currentLatitude = 0.0;
+      _currentLongitude = 0.0;
+      _isServiceRunning = false;
+      _dayOffDateTime = null;
+      _morningDefaultAppliedDate = null;
+      _afternoonDefaultAppliedDate = null;
+      _currentTargetStationCoordinates = null;
+    });
+  }
+
+  Future<void> _handleSimulatedTimeTravel() async {
+    // Reset flags on backwards jumps
+    if (simulatedStart != null && _realTimeAtSimulationStart != null) {
+      if (simulatedStart!.isBefore(_realTimeAtSimulationStart!)) {
+        await _resetSimulationState();
+      }
+    }
+  }
+
+  Future<void> _checkGpsAccuracy() async {
+    // Re-check on accuracy improvement
+    if (_hasRealGpsData) {
+      // Logic to check GPS accuracy and adjust alerts
+      final accuracy = await _getGpsAccuracy();
+      if (accuracy < 10) {
+        // Example threshold for accuracy
+        // Delay alert until accuracy improves
+        await Future.delayed(Duration(seconds: 5));
+        await _checkGpsAccuracy(); // Recursive call to re-check
+      } else {
+        // Proceed with alert
+        _triggerAlert();
+      }
+    }
+  }
+
+  Future<double> _getGpsAccuracy() async {
+    // Logic to get GPS accuracy
+    // This is a placeholder; replace with actual GPS accuracy retrieval logic
+    return 5.0; // Example accuracy value
+  }
+
+  void _triggerAlert() {
+    // Logic to trigger the alert
+    // This is a placeholder; replace with actual alert logic
+  }
+
+  Future<void> _handleMissedAlerts() async {
+    // Check for all missed events
+    // Logic to handle missed alerts
+    // This is a placeholder; replace with actual logic to handle missed alerts
+  }
+
+  Future<void> _persistState() async {
+    // Persist and restore all state
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('currentTrain', _currentTrain);
+    await prefs.setString('trackingMode', _trackingMode);
+    await prefs.setString('displayTrackingMode', _displayTrackingMode);
+    await prefs.setString('locationStatus', _locationStatus);
+    await prefs.setBool('hasRealGpsData', _hasRealGpsData);
+    await prefs.setDouble('currentLatitude', _currentLatitude);
+    await prefs.setDouble('currentLongitude', _currentLongitude);
+    await prefs.setBool('isServiceRunning', _isServiceRunning);
+    if (_dayOffDateTime != null) {
+      await prefs.setString(
+          'dayOffDateTime', _dayOffDateTime!.toIso8601String());
+    }
+    await prefs.setString(
+        'morningDefaultAppliedDate', _morningDefaultAppliedDate ?? '');
+    await prefs.setString(
+        'afternoonDefaultAppliedDate', _afternoonDefaultAppliedDate ?? '');
+    if (_currentTargetStationCoordinates != null) {
+      await prefs.setString('currentTargetStationCoordinates',
+          _currentTargetStationCoordinates.toString());
+    }
+  }
+
+  Future<void> _useUtcInternally() async {
+    // Example: convert all relevant times to UTC before saving
+    if (_dayOffDateTime != null) {
+      _dayOffDateTime = _toUtc(_dayOffDateTime!);
+    }
+    if (simulatedStart != null) {
+      simulatedStart = _toUtc(simulatedStart!);
+    }
+    if (_realTimeAtSimulationStart != null) {
+      _realTimeAtSimulationStart = _toUtc(_realTimeAtSimulationStart!);
+    }
+    // Add more as needed
+  }
+
+  Future<void> _resetStateOnTrainModeChange() async {
+    // Reset all state on change
+    await _resetSimulationState();
+    simulatedStart = null;
+    _missedAlertsQueue.clear();
+    // Reset any reminder flags here as well
+  }
+
+  Future<void> _queueMissedAlerts(String alert) async {
+    // Queue or fallback for missed alerts
+    _missedAlertsQueue.add(alert);
+  }
+
+  void _processMissedAlertsIfPossible() {
+    if (_hasRealGpsData && _missedAlertsQueue.isNotEmpty) {
+      for (final alert in _missedAlertsQueue) {
+        _triggerAlertWithMessage(alert);
+      }
+      _missedAlertsQueue.clear();
+    }
+  }
+
+  void _triggerAlertWithMessage(String message) {
+    // Actual alert logic (e.g., show notification, TTS, etc.)
+    _speak(message);
+    // Add more alert logic as needed
   }
 
   @override
