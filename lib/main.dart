@@ -16,7 +16,7 @@ import 'package:flutter_foreground_task/models/notification_priority.dart';
 import 'utils/simulated_time.dart';
 
 // App version
-const String appVersion = '1.2.13';
+const String appVersion = '1.2.16';
 
 @pragma('vm:entry-point')
 void main() async {
@@ -1204,8 +1204,7 @@ class _LocationScreenState extends State<LocationScreen>
             children: <Widget>[
               _buildTopInfoDisplay(),
 
-              const Divider(), // Separator after the top info block
-              // --- Core Action Buttons ---
+              // --- Main App Functions ---
               ElevatedButton(
                 onPressed: _toggleTrain,
                 child: const Icon(Icons.train),
@@ -1255,20 +1254,26 @@ class _LocationScreenState extends State<LocationScreen>
                 ),
               ],
 
-              const SizedBox(height: 10),
-              const Divider(), // Separator before the testing/service controls
-              // --- Testing & Service Controls ---
-              Text(
-                // For the separated "Service Status"
-                'Service Status: ${_isServiceRunning ? 'Running' : 'Stopped'}',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: _isServiceRunning ? Colors.green : Colors.red,
-                ),
-                textAlign: TextAlign.center,
+              // Pronounced divider
+              const SizedBox(height: 16),
+              Divider(
+                thickness: 4,
+                color: Colors.grey,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
+
+              // --- Testing Functions Section ---
+              const Center(
+                child: Text(
+                  'Testing Functions',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _testTimeToggle,
                 child: Text(
@@ -1284,11 +1289,6 @@ class _LocationScreenState extends State<LocationScreen>
               ),
               const SizedBox(height: 10),
               ElevatedButton(
-                onPressed: _testDirectGPS,
-                child: const Text('TESTING: Get GPS Now'),
-              ),
-              const SizedBox(height: 10),
-              ElevatedButton(
                 onPressed: _isServiceRunning
                     ? _stopBackgroundTracking
                     : _startBackgroundTracking,
@@ -1299,14 +1299,9 @@ class _LocationScreenState extends State<LocationScreen>
                 ),
                 child: Text(
                   _isServiceRunning
-                      ? 'TESTING: Stop GPS Service'
-                      : 'TESTING: Restart GPS Service',
+                      ? 'Stop GPS Service'
+                      : 'Restart GPS Service',
                 ),
-              ),
-              const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: _checkAndApplyAutomaticTrainDefaults,
-                child: const Text('DEBUG: Trigger Auto Train Selection'),
               ),
             ],
           ),
