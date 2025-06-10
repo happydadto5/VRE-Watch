@@ -16,7 +16,7 @@ import 'package:flutter_foreground_task/models/notification_priority.dart';
 import 'utils/simulated_time.dart';
 
 // App version
-const String appVersion = '1.2.16';
+const String appVersion = '1.2.17';
 
 @pragma('vm:entry-point')
 void main() async {

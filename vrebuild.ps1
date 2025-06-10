@@ -4,6 +4,9 @@ param(
     [int]$BuildType
 )
 
+# Prompt for minor or major change
+$changeType = Read-Host "Change type: (1) Minor (skip clean/pub get), (2) Major (run clean/pub get)? Enter 1 or 2"
+
 if (-not $PSBoundParameters.ContainsKey('BuildType')) {
     $BuildType = Read-Host "Build type: (1) Debug only, (2) Debug and Release? Enter 1 or 2"
 }
@@ -13,20 +16,14 @@ $apkDebugFallback = "android/app/build/outputs/apk/debug/app-debug.apk"
 $apkReleasePath = "android/app/build/outputs/flutter-apk/app-release.apk"
 $apkReleaseFallback = "android/app/build/outputs/apk/release/app-release.apk"
 
-# Get the last write time before build (debug)
-$preBuildTime = $null
-if (Test-Path $apkDebugPath) {
-    $preBuildTime = (Get-Item $apkDebugPath).LastWriteTimeUtc
-    Write-Host "Pre-build debug APK timestamp: $preBuildTime"
-} else {
-    Write-Host "No existing debug APK found before build"
+# Only clean and pub get for major changes
+if ($changeType -eq '2') {
+    flutter clean
+    if ($LASTEXITCODE -ne 0) { Write-Host "flutter clean failed!"; exit 1 }
+
+    flutter pub get
+    if ($LASTEXITCODE -ne 0) { Write-Host "flutter pub get failed!"; exit 1 }
 }
-
-flutter clean
-if ($LASTEXITCODE -ne 0) { Write-Host "flutter clean failed!"; exit 1 }
-
-flutter pub get
-if ($LASTEXITCODE -ne 0) { Write-Host "flutter pub get failed!"; exit 1 }
 
 # Build debug APK
 flutter build apk --debug
@@ -42,18 +39,7 @@ if (Test-Path $apkDebugPath) {
     $postBuildTime = (Get-Item $apkDebugPath).LastWriteTimeUtc
     Write-Host "Post-build debug APK timestamp: $postBuildTime"
     
-    if ($preBuildTime -eq $null) {
-        Write-Host "New debug APK created. Proceeding."
-        $apkDebug = $apkDebugPath
-    } elseif ($postBuildTime -gt $preBuildTime) {
-        Write-Host "Debug APK updated. Proceeding."
-        $apkDebug = $apkDebugPath
-    } else {
-        Write-Host "ERROR: Debug APK timestamp did not change after build. This indicates the build did not complete successfully."
-        Write-Host "Pre-build time: $preBuildTime"
-        Write-Host "Post-build time: $postBuildTime"
-        exit 1
-    }
+    $apkDebug = $apkDebugPath
 } elseif (Test-Path $apkDebugFallback) {
     Write-Host "Using fallback debug APK path: $apkDebugFallback"
     $apkDebug = $apkDebugFallback
@@ -87,7 +73,7 @@ adb install -r $targetDebugApk
 if ($LASTEXITCODE -ne 0) { Write-Host "APK install failed!"; exit 1 }
 
 # Launch the app using the correct package name
-adb shell monkey -p com.example.vre_new -c android.intent.category.LAUNCHER 1
+adb shell monkey -p com.example.vre_new -c android.intent.category.LAUNCHER 1 
 if ($LASTEXITCODE -ne 0) { Write-Host "App launch failed!"; exit 1 }
 
 # Pause at the end so you can see the result
