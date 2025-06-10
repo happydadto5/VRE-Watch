@@ -16,7 +16,7 @@ import 'package:flutter_foreground_task/models/notification_priority.dart';
 import 'utils/simulated_time.dart';
 
 // App version
-const String appVersion = '1.2.8';
+const String appVersion = '1.2.13';
 
 @pragma('vm:entry-point')
 void main() async {
@@ -39,7 +39,7 @@ void main() async {
     ),
     foregroundTaskOptions: ForegroundTaskOptions(
       eventAction: ForegroundTaskEventAction.repeat(5000),
-      autoRunOnBoot: false,
+      autoRunOnBoot: true,
       allowWakeLock: true,
       allowWifiLock: true,
     ),
@@ -1180,6 +1180,12 @@ class _LocationScreenState extends State<LocationScreen>
     // Add more alert logic as needed
   }
 
+  String _getNextBusinessDayLabel() {
+    final DateTime today = DateTime.now();
+    final DateTime nextBusinessDay = _calculateNextBusinessDay(today);
+    return DateFormat('EEEE').format(nextBusinessDay);
+  }
+
   @override
   Widget build(BuildContext context) {
     // Variable to hold the display string for day off status
@@ -1235,14 +1241,14 @@ class _LocationScreenState extends State<LocationScreen>
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _setOffToday,
-                        child: const Text("Today"),
+                        child: Text(DateFormat('EEEE').format(DateTime.now())),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: _setOffTomorrow,
-                        child: const Text("Tomorrow"),
+                        child: Text(_getNextBusinessDayLabel()),
                       ),
                     ),
                   ],

@@ -1,5 +1,13 @@
 # PowerShell script to clean, build, install, and launch the Flutter debug APK on an emulator
 
+param(
+    [int]$BuildType
+)
+
+if (-not $PSBoundParameters.ContainsKey('BuildType')) {
+    $BuildType = Read-Host "Build type: (1) Debug only, (2) Debug and Release? Enter 1 or 2"
+}
+
 $apkDebugPath = "android/app/build/outputs/flutter-apk/app-debug.apk"
 $apkDebugFallback = "android/app/build/outputs/apk/debug/app-debug.apk"
 $apkReleasePath = "android/app/build/outputs/flutter-apk/app-release.apk"
@@ -22,8 +30,11 @@ if ($LASTEXITCODE -ne 0) { Write-Host "flutter pub get failed!"; exit 1 }
 
 # Build debug APK
 flutter build apk --debug
-# Build release APK
-flutter build apk --release
+
+# Optionally build release APK
+if ($BuildType -eq 2) {
+    flutter build apk --release
+}
 
 # Check if the debug APK exists and was updated
 $apkDebug = $null
@@ -52,14 +63,16 @@ if (Test-Path $apkDebugPath) {
 
 # Check if the release APK exists
 $apkRelease = $null
-if (Test-Path $apkReleasePath) {
-    Write-Host "Release APK found at $apkReleasePath"
-    $apkRelease = $apkReleasePath
-} elseif (Test-Path $apkReleaseFallback) {
-    Write-Host "Using fallback release APK path: $apkReleaseFallback"
-    $apkRelease = $apkReleaseFallback
-} else {
-    Write-Host "No release APK found!"
+if ($BuildType -eq 2) {
+    if (Test-Path $apkReleasePath) {
+        Write-Host "Release APK found at $apkReleasePath"
+        $apkRelease = $apkReleasePath
+    } elseif (Test-Path $apkReleaseFallback) {
+        Write-Host "Using fallback release APK path: $apkReleaseFallback"
+        $apkRelease = $apkReleaseFallback
+    } else {
+        Write-Host "No release APK found!"
+    }
 }
 
 # Always copy the APKs to a known location for one-click install/distribution
@@ -78,5 +91,5 @@ adb shell monkey -p com.example.vre_new -c android.intent.category.LAUNCHER 1
 if ($LASTEXITCODE -ne 0) { Write-Host "App launch failed!"; exit 1 }
 
 # Pause at the end so you can see the result
-Write-Host "`nScript complete. Both debug and release APKs are in the build directory. Press Enter to exit."
+Write-Host "`nScript complete. APKs are in the build directory. Press Enter to exit."
 Read-Host
